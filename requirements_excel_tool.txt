@@ -1,0 +1,10 @@
+# Excel比对工具依赖
+# Python 3.7.1 兼容
+
+openpyxl==3.0.10
+
+# 注意：tkinter 是 Python 内置库，无需单独安装
+# 如果遇到 tkinter 未找到的问题，请确保安装了完整的 Python（包含 tk 支持）
+# macOS: brew install python-tk@3.7
+# Ubuntu: sudo apt-get install python3-tk
+

@@ -1,0 +1,33 @@
+Excel比对工具 - 打包成独立可执行文件
+========================================
+
+📦 快速开始
+----------------------------------------
+
+1. 安装依赖
+   Windows: 双击 install_deps.bat
+   Mac/Linux: ./install_deps.sh
+
+2. 打包程序
+   Windows: 双击 build.bat
+   Mac/Linux: ./build.sh
+
+3. 查找输出
+   打包完成后，可执行文件在：
+   - Windows: release_windows/ExcelCompare.exe
+   - Mac: release_macos/ExcelCompare
+   - Linux: release_linux/ExcelCompare
+
+📋 详细说明
+----------------------------------------
+
+打包后的程序：
+✓ 无需安装Python
+✓ 无需安装任何依赖
+✓ 双击即可运行
+✓ 跨平台支持
+
+文件大小：约 20-30 MB
+
+更多说明请查看：BUILD_GUIDE.md
+

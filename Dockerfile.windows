@@ -1,0 +1,31 @@
+# Windows 交叉编译 Dockerfile
+# 在 macOS/Linux 上编译 Windows 可执行文件
+
+FROM python:3.9-windowsservercore
+
+WORKDIR /app
+
+# 复制文件
+COPY requirements_build.txt .
+COPY excel_compare_web.py .
+COPY file_picker.py .
+
+# 安装依赖
+RUN pip install --no-cache-dir -r requirements_build.txt
+
+# 编译
+RUN pyinstaller --name=ExcelCompare ^
+    --onefile ^
+    --windowed ^
+    --add-data="file_picker.py;." ^
+    --hidden-import=openpyxl ^
+    --hidden-import=openpyxl.styles ^
+    --hidden-import=openpyxl.utils ^
+    --hidden-import=decimal ^
+    --hidden-import=tkinter ^
+    --hidden-import=tkinter.filedialog ^
+    excel_compare_web.py
+
+# 输出目录
+CMD ["cmd"]
+
