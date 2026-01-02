@@ -17,6 +17,42 @@ import platform
 import shutil
 import subprocess
 
+# 设置标准输出编码为UTF-8（解决Windows控制台中文输出问题）
+if sys.platform == 'win32':
+    try:
+        # Python 3.7+
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except AttributeError:
+        # Python 3.6及更早版本
+        import codecs
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+
+# 设置环境变量，确保子进程也使用UTF-8
+os.environ['PYTHONIOENCODING'] = 'utf-8'
+
+# 重写print函数以处理编码错误
+import builtins
+_original_print = builtins.print
+
+def safe_print(*args, **kwargs):
+    """安全打印函数，处理编码错误"""
+    try:
+        _original_print(*args, **kwargs)
+    except UnicodeEncodeError:
+        # 如果遇到编码错误，尝试用ASCII安全模式
+        safe_args = []
+        for arg in args:
+            if isinstance(arg, str):
+                safe_args.append(arg.encode('ascii', 'replace').decode('ascii'))
+            else:
+                safe_args.append(arg)
+        _original_print(*safe_args, **kwargs)
+
+# 替换内置print函数
+builtins.print = safe_print
+
 
 def get_platform_name():
     """获取平台名称"""

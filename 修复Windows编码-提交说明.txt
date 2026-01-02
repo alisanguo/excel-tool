@@ -1,0 +1,79 @@
+Windows编码问题修复 - 提交说明
+====================================
+
+## 修改的文件
+
+1. build.py
+   - 添加 UTF-8 编码设置
+   - 重写 print 函数以处理编码错误
+   - 支持 Python 3.6-3.9+
+
+2. excel_compare_web.py
+   - 添加 UTF-8 编码设置
+   - 确保运行时不会因中文输出崩溃
+
+3. .github/workflows/build.yml
+   - 添加环境变量 PYTHONIOENCODING 和 PYTHONUTF8
+   - 确保 CI 环境正确处理 UTF-8
+
+4. Windows编码问题修复说明.md（新增）
+   - 详细的技术文档
+   - 问题分析和解决方案
+
+5. 修复Windows编码-提交说明.txt（本文件）
+
+## 本地测试（可选）
+
+Windows:
+  python build.py
+
+macOS/Linux:
+  python build.py
+
+## 提交到 Git
+
+cd /Users/li.wang/ai-test-project/excel-tool
+
+# 查看修改
+git status
+
+# 添加修改
+git add build.py
+git add excel_compare_web.py
+git add .github/workflows/build.yml
+git add "Windows编码问题修复说明.md"
+git add "修复Windows编码-提交说明.txt"
+
+# 提交
+git commit -m "修复Windows编译时的UTF-8编码问题
+
+- build.py: 添加UTF-8编码设置和安全print函数
+- excel_compare_web.py: 添加UTF-8编码设置
+- GitHub Actions: 添加PYTHONIOENCODING和PYTHONUTF8环境变量
+- 确保在Windows环境下能正确处理中文字符输出"
+
+# 推送
+git push origin main
+
+## 验证修复
+
+推送后，GitHub Actions 会自动运行编译：
+https://github.com/YOUR_USERNAME/excel-tool/actions
+
+预期结果：
+✅ Build on windows-latest - 成功
+✅ Build on macos-latest - 成功
+✅ Build on ubuntu-latest - 成功
+
+## 核心修复
+
+问题：Windows控制台默认不是UTF-8，导致print中文时崩溃
+解决：
+1. sys.stdout.reconfigure(encoding='utf-8') - 重新配置输出流
+2. 环境变量 PYTHONIOENCODING=utf-8 - 全局设置
+3. 安全print函数 - 兜底保护
+4. CI环境变量 - GitHub Actions支持
+
+====================================
+修复完成！现在可以在Windows上正常编译了。
+

@@ -16,6 +16,21 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import parse_qs, unquote
 from decimal import Decimal, ROUND_HALF_UP
 
+# 设置标准输出编码为UTF-8（解决Windows控制台中文输出问题）
+if sys.platform == 'win32':
+    try:
+        # Python 3.7+
+        sys.stdout.reconfigure(encoding='utf-8')
+        sys.stderr.reconfigure(encoding='utf-8')
+    except AttributeError:
+        # Python 3.6及更早版本
+        import codecs
+        sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
+        sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
+
+# 设置环境变量
+os.environ['PYTHONIOENCODING'] = 'utf-8'
+
 try:
     from openpyxl import Workbook, load_workbook
     from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
