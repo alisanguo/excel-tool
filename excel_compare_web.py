@@ -170,24 +170,26 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         </div>
         
         <div class="section">
-            <div class="section-title">颜色阈值设置 (差异百分比绝对值)</div>
-            <div class="color-row">
+            <div class="section-title">比对设置</div>
+            <div class="form-row">
+                <label>小数位数:</label>
+                <input type="number" id="decimalPlaces" value="6" min="0" max="10" step="1" 
+                       style="width: 80px; margin: 0 10px;">
+                <span class="color-text">位（用于差额和百分比）</span>
+            </div>
+            <div class="form-row" style="margin-top: 10px;">
+                <label>阈值设置:</label>
+                <span class="color-text">百分比绝对值 < </span>
+                <input type="number" id="greenTh" value="1.0" step="0.1" style="width: 80px; margin: 0 5px;">
+                <span class="color-text">% 或 A=B 时为绿色，否则为红色</span>
+            </div>
+            <div class="color-row" style="margin-top: 10px;">
                 <div class="color-box green-box"></div>
-                <span class="color-text">绿色: 差异 < </span>
-                <input type="number" id="greenTh" value="1.0" step="0.1" style="margin: 0 5px;">
-                <span class="color-text">%</span>
+                <span class="color-text" style="margin-left: 10px;">绿色: A=B 或 |差异%| < 阈值</span>
             </div>
             <div class="color-row">
                 <div class="color-box red-box"></div>
-                <span class="color-text">红色: </span>
-                <input type="number" id="redMin" value="1.0" step="0.1" style="margin: 0 5px; width: 70px;">
-                <span class="color-text">% ≤ 差异 ≤ </span>
-                <input type="number" id="redMax" value="100.0" step="1" style="margin: 0 5px; width: 70px;">
-                <span class="color-text">%</span>
-            </div>
-            <div class="color-row">
-                <div class="color-box white-box"></div>
-                <span class="color-text">无色: 差异 > 红色上限</span>
+                <span class="color-text" style="margin-left: 10px;">红色: 其他情况</span>
             </div>
         </div>
         
@@ -253,9 +255,8 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 dataAFile: document.getElementById('dataAFile').value,
                 dataBFile: document.getElementById('dataBFile').value,
                 outputFile: document.getElementById('outputFile').value,
-                greenTh: parseFloat(document.getElementById('greenTh').value),
-                redMin: parseFloat(document.getElementById('redMin').value),
-                redMax: parseFloat(document.getElementById('redMax').value)
+                decimalPlaces: parseInt(document.getElementById('decimalPlaces').value),
+                greenTh: parseFloat(document.getElementById('greenTh').value)
             };
             
             if (!data.baseFile) { alert('请输入基准文件路径'); return; }
@@ -264,7 +265,8 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             
             log('\\n========================================');
             log('开始对比...');
-            log('阈值: 绿<' + data.greenTh + '%, 红' + data.redMin + '%-' + data.redMax + '%');
+            log('小数位数: ' + data.decimalPlaces + ' 位');
+            log('阈值: |差异%| < ' + data.greenTh + '% 或 A=B 为绿色');
             
             const result = await api('compare', data);
             if (result.success) {
@@ -433,9 +435,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             data_a_file = data.get('dataAFile', '')
             data_b_file = data.get('dataBFile', '')
             output_file = data.get('outputFile', 'compare_result.xlsx')
+            decimal_places = int(data.get('decimalPlaces', 6))
             green_th = float(data.get('greenTh', 1.0))
-            red_min = float(data.get('redMin', 1.0))
-            red_max = float(data.get('redMax', 100.0))
             
             # 读取基准
             base_names = self._read_base(base_file)
@@ -446,12 +447,12 @@ class RequestHandler(BaseHTTPRequestHandler):
             
             # 生成结果
             output_path = os.path.join(workdir, output_file)
-            self._create_result(output_path, base_names, data_a, data_b, green_th, red_min, red_max)
+            self._create_result(output_path, base_names, data_a, data_b, decimal_places, green_th)
             
             return {
                 'success': True, 
-                'message': '基准: {} 个指标\n输入1: {} 个数据\n输入2: {} 个数据\n========================================\n[完成] 结果已保存: {}'.format(
-                    len(base_names), len(data_a), len(data_b), output_file
+                'message': '基准: {} 个指标\n输入1: {} 个数据\n输入2: {} 个数据\n小数位数: {} 位\n========================================\n[完成] 结果已保存: {}'.format(
+                    len(base_names), len(data_a), len(data_b), decimal_places, output_file
                 )
             }
             
@@ -525,7 +526,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         except:
             return None
     
-    def _create_result(self, output, names, data_a, data_b, green_th, red_min, red_max):
+    def _create_result(self, output, names, data_a, data_b, decimal_places, green_th):
         GREEN = PatternFill(start_color="90EE90", end_color="90EE90", fill_type="solid")
         RED = PatternFill(start_color="FF6B6B", end_color="FF6B6B", fill_type="solid")
         HEADER = PatternFill(start_color="DCDCDC", end_color="DCDCDC", fill_type="solid")
@@ -539,8 +540,11 @@ class RequestHandler(BaseHTTPRequestHandler):
         ws = wb.active
         ws.title = "比对结果"
         
+        # 构造格式化字符串（根据小数位数）
+        format_str = '0.' + '0' * decimal_places
+        
         # 表头（第1行）
-        for col, h in enumerate(["指标名称", "A", "B", "差额", "差异%"], 1):
+        for col, h in enumerate(["指标名称", "A", "B", "差额(A-B)", "差异%"], 1):
             c = ws.cell(row=1, column=col, value=h)
             c.fill = HEADER
             c.font = Font(bold=True)
@@ -549,26 +553,26 @@ class RequestHandler(BaseHTTPRequestHandler):
         
         # 图例放在右上角 G1:H2（与表头同行及下一行）
         legend_col = 7  # G列
-        cell_g1 = ws.cell(row=1, column=legend_col, value="差异 >= {}%".format(red_min))
+        cell_g1 = ws.cell(row=1, column=legend_col, value="A=B 或 |差异%|<{}%".format(green_th))
         cell_g1.border = border
         cell_g1.fill = LEGEND_FILL
         cell_g1.alignment = Alignment(horizontal='left')
         cell_g1.font = Font(size=10)
         
-        cell_h1 = ws.cell(row=1, column=legend_col+1, value="红色")
-        cell_h1.fill = RED
+        cell_h1 = ws.cell(row=1, column=legend_col+1, value="绿色")
+        cell_h1.fill = GREEN
         cell_h1.border = border
         cell_h1.alignment = Alignment(horizontal='center')
         cell_h1.font = Font(size=10)
         
-        cell_g2 = ws.cell(row=2, column=legend_col, value="差异 < {}%".format(green_th))
+        cell_g2 = ws.cell(row=2, column=legend_col, value="其他情况")
         cell_g2.border = border
         cell_g2.fill = LEGEND_FILL
         cell_g2.alignment = Alignment(horizontal='left')
         cell_g2.font = Font(size=10)
         
-        cell_h2 = ws.cell(row=2, column=legend_col+1, value="绿色")
-        cell_h2.fill = GREEN
+        cell_h2 = ws.cell(row=2, column=legend_col+1, value="红色")
+        cell_h2.fill = RED
         cell_h2.border = border
         cell_h2.alignment = Alignment(horizontal='center')
         cell_h2.font = Font(size=10)
@@ -584,37 +588,55 @@ class RequestHandler(BaseHTTPRequestHandler):
             pa = self._parse_num(va)
             pb = self._parse_num(vb)
             
+            # A列
             if pa is not None:
                 ws.cell(row=current_row, column=2, value=float(pa)).border = border
             else:
                 ws.cell(row=current_row, column=2, value="error").border = border
                 
+            # B列
             if pb is not None:
                 ws.cell(row=current_row, column=3, value=float(pb)).border = border
             else:
                 ws.cell(row=current_row, column=3, value="error").border = border
                 
+            # 差额 (A-B)
             if pa is not None and pb is not None:
                 diff = pa - pb
-                ws.cell(row=current_row, column=4, value=float(diff.quantize(Decimal('0.0001')))).border = border
+                diff_formatted = float(diff.quantize(Decimal(format_str), rounding=ROUND_HALF_UP))
+                ws.cell(row=current_row, column=4, value=diff_formatted).border = border
             else:
                 ws.cell(row=current_row, column=4, value="#VALUE!").border = border
                 diff = None
                 
+            # 差异百分比 (A-B)/A * 100
             cell = ws.cell(row=current_row, column=5)
             cell.border = border
-            if diff is not None and pb is not None and pb != 0:
-                pct = (diff / pb) * 100
-                pct_val = float(pct.quantize(Decimal('0.0001')))
-                cell.value = "{}%".format(pct_val)
-                
-                abs_pct = abs(pct)
-                if abs_pct < green_th:
-                    cell.fill = GREEN
-                elif red_min <= abs_pct <= red_max:
+            
+            if pa is not None and pb is not None:
+                # 判断A和B是否相等
+                if pa == pb:
+                    cell.value = "0%"
+                    cell.fill = GREEN  # A=B 时为绿色
+                elif pa == 0:
+                    # A为0时，无法计算百分比
+                    cell.value = "#VALUE!"
                     cell.fill = RED
+                else:
+                    # 计算百分比: (A-B)/A * 100
+                    pct = (diff / pa) * 100
+                    pct_formatted = float(pct.quantize(Decimal(format_str), rounding=ROUND_HALF_UP))
+                    cell.value = "{}%".format(pct_formatted)
+                    
+                    # 颜色判断：|差异%| < green_th 为绿色，否则为红色
+                    abs_pct = abs(pct)
+                    if abs_pct < green_th:
+                        cell.fill = GREEN
+                    else:
+                        cell.fill = RED
             else:
                 cell.value = "#VALUE!"
+                cell.fill = RED
             
             current_row += 1
                 

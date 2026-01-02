@@ -73,14 +73,17 @@ def build_executable():
     
     print(f"\n开始构建 ({platform_name})...")
     
+    # 确定路径分隔符
+    separator = ';' if platform_name == 'windows' else ':'
+    
     # PyInstaller 参数
     args = [
         'pyinstaller',
         '--name=ExcelCompare',
         '--onefile',  # 单文件模式
-        '--windowed' if platform_name == 'windows' else '--console',  # Windows无窗口，其他显示控制台
-        '--icon=NONE',  # 可以后续添加图标
-        '--add-data=file_picker.py:.',  # 包含文件选择器
+        '--console',  # 显示控制台（方便查看日志）
+        '--noconfirm',  # 不询问，直接覆盖
+        f'--add-data=file_picker.py{separator}.'  # 包含文件选择器
     ]
     
     # 添加隐藏导入
@@ -230,10 +233,17 @@ def main():
     # 检查依赖
     check_dependencies()
     
-    # 询问是否清理
-    print("\n是否清理旧的构建文件? (y/n): ", end='')
-    if input().lower() == 'y':
+    # 检查是否在 CI 环境中
+    is_ci = os.environ.get('CI') == 'true' or os.environ.get('GITHUB_ACTIONS') == 'true'
+    
+    # 询问是否清理（CI 环境自动清理）
+    if is_ci:
+        print("\n检测到 CI 环境，自动清理旧的构建文件...")
         clean_build()
+    else:
+        print("\n是否清理旧的构建文件? (y/n): ", end='')
+        if input().lower() == 'y':
+            clean_build()
     
     # 构建
     success = build_executable()
