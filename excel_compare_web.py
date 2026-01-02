@@ -711,39 +711,46 @@ class RequestHandler(BaseHTTPRequestHandler):
                     return {'success': True, 'path': result.stdout.strip()}
                 return {'success': False, 'message': '未选择文件'}
             else:
-                # Windows/Linux: 使用独立进程运行tkinter
-                script_dir = os.path.dirname(os.path.abspath(__file__))
-                picker_script = os.path.join(script_dir, 'file_picker.py')
+                # Windows/Linux: 直接使用tkinter（集成方式，解决PyInstaller subprocess循环问题）
+                try:
+                    import tkinter as tk
+                    from tkinter import filedialog
+                except ImportError:
+                    return {'success': False, 'message': 'tkinter未安装'}
                 
                 # 确保初始目录存在
                 if not initial_dir or not os.path.exists(initial_dir):
                     initial_dir = os.getcwd()
                 
-                # Windows上隐藏控制台窗口
-                kwargs = {
-                    'capture_output': True,
-                    'text': True,
-                    'timeout': 60
-                }
-                if sys.platform == 'win32':
-                    kwargs['creationflags'] = 0x08000000  # CREATE_NO_WINDOW
+                # 创建隐藏的根窗口
+                root = tk.Tk()
+                root.withdraw()  # 隐藏主窗口
                 
-                result = subprocess.run(
-                    [sys.executable, picker_script, 'file', initial_dir],
-                    **kwargs
+                # Windows上设置窗口置顶
+                if sys.platform == 'win32':
+                    try:
+                        root.wm_attributes('-topmost', True)
+                        root.focus_force()
+                    except:
+                        pass
+                
+                # 打开文件选择对话框
+                file_path = filedialog.askopenfilename(
+                    title='选择Excel文件',
+                    initialdir=initial_dir,
+                    filetypes=[
+                        ('Excel文件', '*.xlsx *.xls'),
+                        ('所有文件', '*.*')
+                    ]
                 )
                 
-                # 检查stderr中的错误
-                if result.stderr:
-                    return {'success': False, 'message': '错误: ' + result.stderr.strip()}
+                # 销毁根窗口
+                root.destroy()
                 
-                output = result.stdout.strip()
-                if result.returncode == 0 and output:
-                    return {'success': True, 'path': output}
-                elif result.returncode == 0:
-                    return {'success': False, 'message': '未选择文件'}
+                if file_path:
+                    return {'success': True, 'path': file_path}
                 else:
-                    return {'success': False, 'message': '选择失败 (code {})'.format(result.returncode)}
+                    return {'success': False, 'message': '未选择文件'}
         except subprocess.TimeoutExpired:
             return {'success': False, 'message': '选择超时'}
         except Exception as e:
@@ -768,35 +775,38 @@ class RequestHandler(BaseHTTPRequestHandler):
                     return {'success': True, 'path': result.stdout.strip().rstrip('/')}
                 return {'success': False, 'message': '未选择目录'}
             else:
-                # Windows/Linux: 使用独立进程运行tkinter
-                script_dir = os.path.dirname(os.path.abspath(__file__))
-                picker_script = os.path.join(script_dir, 'file_picker.py')
+                # Windows/Linux: 直接使用tkinter（集成方式，解决PyInstaller subprocess循环问题）
+                try:
+                    import tkinter as tk
+                    from tkinter import filedialog
+                except ImportError:
+                    return {'success': False, 'message': 'tkinter未安装'}
                 
-                # Windows上隐藏控制台窗口
-                kwargs = {
-                    'capture_output': True,
-                    'text': True,
-                    'timeout': 60
-                }
+                # 创建隐藏的根窗口
+                root = tk.Tk()
+                root.withdraw()  # 隐藏主窗口
+                
+                # Windows上设置窗口置顶
                 if sys.platform == 'win32':
-                    kwargs['creationflags'] = 0x08000000  # CREATE_NO_WINDOW
+                    try:
+                        root.wm_attributes('-topmost', True)
+                        root.focus_force()
+                    except:
+                        pass
                 
-                result = subprocess.run(
-                    [sys.executable, picker_script, 'dir'],
-                    **kwargs
+                # 打开目录选择对话框
+                dir_path = filedialog.askdirectory(
+                    title='选择工作目录',
+                    initialdir=os.getcwd()
                 )
                 
-                # 检查stderr中的错误
-                if result.stderr:
-                    return {'success': False, 'message': '错误: ' + result.stderr.strip()}
+                # 销毁根窗口
+                root.destroy()
                 
-                output = result.stdout.strip()
-                if result.returncode == 0 and output:
-                    return {'success': True, 'path': output}
-                elif result.returncode == 0:
-                    return {'success': False, 'message': '未选择目录'}
+                if dir_path:
+                    return {'success': True, 'path': dir_path}
                 else:
-                    return {'success': False, 'message': '选择失败 (code {})'.format(result.returncode)}
+                    return {'success': False, 'message': '未选择目录'}
         except subprocess.TimeoutExpired:
             return {'success': False, 'message': '选择超时'}
         except Exception as e:

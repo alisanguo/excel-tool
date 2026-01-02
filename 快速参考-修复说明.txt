@@ -1,0 +1,44 @@
+====================================
+Windows 进程循环问题修复 - 快速参考
+====================================
+
+问题：
+  Windows上点击"选择文件"，创建5+个ExcelCompare.exe进程，程序无响应
+
+原因：
+  PyInstaller打包后sys.executable=ExcelCompare.exe
+  subprocess调用sys.executable导致无限循环
+
+修复：
+  集成tkinter到主程序，移除subprocess和file_picker.py依赖
+
+修改文件：
+  ✅ excel_compare_web.py - 集成tkinter文件选择
+  ✅ build.py - 移除file_picker.py依赖
+  ✅ 文档 - 4个新增文档
+
+推送命令：
+  cd /Users/li.wang/ai-test-project/excel-tool
+  ./push_subprocess_fix.sh
+
+验证步骤：
+  1. GitHub Actions 编译
+  2. 下载 Windows 版本
+  3. 在 Windows 上测试文件选择
+  4. 确认只有1个进程运行
+
+预期效果：
+  ✅ 文件选择对话框正常弹出
+  ✅ 只有1个ExcelCompare.exe进程
+  ✅ 内存占用正常（~20MB）
+  ✅ 功能完全正常
+
+详细文档：
+  - Windows进程循环问题修复说明.md（技术细节）
+  - 修复总结-进程循环.md（完整总结）
+  - 修复提交说明.txt（提交指南）
+
+====================================
+现在可以推送了：./push_subprocess_fix.sh
+====================================
+

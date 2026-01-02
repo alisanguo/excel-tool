@@ -119,7 +119,7 @@ def build_executable():
         '--onefile',  # 单文件模式
         '--console',  # 显示控制台（方便查看日志）
         '--noconfirm',  # 不询问，直接覆盖
-        f'--add-data=file_picker.py{separator}.'  # 包含文件选择器
+        # 注意：已移除file_picker.py依赖，文件选择功能已集成到主程序
     ]
     
     # 添加隐藏导入

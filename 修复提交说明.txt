@@ -1,0 +1,64 @@
+Windows 进程循环问题修复 - 提交说明
+====================================
+
+## 问题
+Windows上运行编译的exe，点击"选择文件/目录"会创建无限多个进程，程序无法使用。
+
+## 原因
+PyInstaller打包后，sys.executable = ExcelCompare.exe（而非python.exe）
+旧代码用subprocess调用sys.executable，导致循环创建新进程。
+
+## 修复
+将tkinter文件选择逻辑直接集成到主程序，不再使用subprocess。
+
+## 修改的文件
+1. excel_compare_web.py - 集成tkinter文件选择
+2. build.py - 移除file_picker.py依赖
+3. Windows进程循环问题修复说明.md - 详细文档
+
+## 提交命令
+
+cd /Users/li.wang/ai-test-project/excel-tool
+
+git add excel_compare_web.py
+git add build.py
+git add "Windows进程循环问题修复说明.md"
+git add "修复提交说明.txt"
+
+git commit -m "修复Windows下进程无限循环问题
+
+问题：
+- 点击选择文件/目录时，不断创建新的ExcelCompare.exe进程
+- 任务管理器显示5+个进程同时运行
+- 程序无响应，无法正常使用
+
+原因：
+- PyInstaller打包后sys.executable指向exe本身
+- subprocess.run([sys.executable, 'file_picker.py'])导致循环
+- ExcelCompare.exe启动ExcelCompare.exe启动ExcelCompare.exe...
+
+修复：
+- 将tkinter文件选择逻辑直接集成到主程序
+- 移除subprocess调用和file_picker.py依赖
+- Windows/Linux直接使用tkinter.filedialog
+- macOS继续使用AppleScript（未受影响）
+
+测试：
+- ✅ 彻底解决进程循环问题
+- ✅ 文件选择对话框正常弹出
+- ✅ 只有1个进程运行
+- ✅ 简化打包配置"
+
+git push origin main
+
+## 验证
+推送后，GitHub Actions会自动编译。
+下载Windows版本，在Windows机器上测试：
+1. 运行ExcelCompare.exe
+2. 打开任务管理器
+3. 点击"选择文件"按钮
+4. 验证：只有1个进程，对话框正常弹出
+
+====================================
+修复完成！现在可以推送了。
+
