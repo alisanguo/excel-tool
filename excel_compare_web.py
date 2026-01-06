@@ -56,7 +56,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             min-height: 100vh; padding: 30px;
         }
         .container { 
-            max-width: 700px; margin: 0 auto; 
+            max-width: 800px; margin: 0 auto; 
             background: white; border-radius: 16px; 
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             padding: 35px; 
@@ -65,6 +65,32 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             text-align: center; color: #333; margin-bottom: 30px;
             font-size: 28px; font-weight: 600;
         }
+        
+        /* Tab 样式 */
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #e0e0e0;
+            margin-bottom: 25px;
+            gap: 10px;
+        }
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+            font-size: 15px;
+            font-weight: 500;
+            color: #666;
+        }
+        .tab:hover { color: #667eea; }
+        .tab.active { 
+            border-bottom-color: #667eea; 
+            color: #667eea;
+            font-weight: 600; 
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
         .section { 
             background: #f8f9fa; border-radius: 12px; 
             padding: 20px; margin-bottom: 20px; 
@@ -138,93 +164,187 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         }
         .btn-browse:hover { background: #dee2e6; }
         .hidden-input { display: none; }
+        .hint-text {
+            font-size: 12px;
+            color: #888;
+            margin-top: 8px;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>📊 Excel 数据比对工具</h1>
         
-        <div class="section">
-            <div class="section-title">工作目录</div>
-            <div class="form-row">
-                <label>目录路径:</label>
-                <div class="file-input-wrapper">
-                    <input type="text" id="workDir" value="''' + WORK_DIR.replace('\\', '\\\\').replace("'", "\\'") + '''">
-                    <button class="btn-browse" onclick="browseDir()">选择目录</button>
+        <!-- Tab 切换栏 -->
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab(1)">指标比对</div>
+            <div class="tab" onclick="switchTab(2)">指标+维度比对</div>
+        </div>
+        
+        <!-- Tab 1: 指标比对 -->
+        <div id="tab1-content" class="tab-content active">
+            <div class="section">
+                <div class="section-title">工作目录</div>
+                <div class="form-row">
+                    <label>目录路径:</label>
+                    <div class="file-input-wrapper">
+                        <input type="text" id="workDir" value="''' + WORK_DIR.replace('\\', '\\\\').replace("'", "\\'") + '''">
+                        <button class="btn-browse" onclick="browseDir()">选择目录</button>
+                    </div>
                 </div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">文件选择</div>
+                <div class="form-row">
+                    <label>上传基准文件:</label>
+                    <div class="file-input-wrapper">
+                        <input type="text" id="baseFile" placeholder="选择基准匹配列文件 (.xlsx)">
+                        <button class="btn-browse" onclick="browseFile('baseFile')">选择文件</button>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label>上传输入1文件:</label>
+                    <div class="file-input-wrapper">
+                        <input type="text" id="dataAFile" placeholder="选择输入1数据文件 (.xlsx)">
+                        <button class="btn-browse" onclick="browseFile('dataAFile')">选择文件</button>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label>上传输入2文件:</label>
+                    <div class="file-input-wrapper">
+                        <input type="text" id="dataBFile" placeholder="选择输入2数据文件 (.xlsx)">
+                        <button class="btn-browse" onclick="browseFile('dataBFile')">选择文件</button>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label>输出文件名:</label>
+                    <input type="text" id="outputFile" value="compare_result.xlsx">
+                </div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">比对设置</div>
+                <div class="form-row">
+                    <label>小数位数:</label>
+                    <input type="number" id="decimalPlaces" value="6" min="0" max="10" step="1" 
+                           style="width: 80px; margin: 0 10px;">
+                    <span class="color-text">位（用于差额和百分比）</span>
+                </div>
+                <div class="form-row" style="margin-top: 10px;">
+                    <label>阈值设置:</label>
+                    <span class="color-text">百分比绝对值 < </span>
+                    <input type="number" id="greenTh" value="1.0" step="0.1" style="width: 80px; margin: 0 5px;">
+                    <span class="color-text">% 或 A=B 时为绿色，否则为红色</span>
+                </div>
+                <div class="color-row" style="margin-top: 10px;">
+                    <div class="color-box green-box"></div>
+                    <span class="color-text" style="margin-left: 10px;">绿色: A=B 或 |差异%| < 阈值</span>
+                </div>
+                <div class="color-row">
+                    <div class="color-box red-box"></div>
+                    <span class="color-text" style="margin-left: 10px;">红色: 其他情况</span>
+                </div>
+            </div>
+            
+            <div class="btn-row">
+                <button class="btn-secondary" onclick="generateTest()">生成测试文件</button>
+                <button class="btn-primary" onclick="runCompare()">🚀 开始对比</button>
+                <button class="btn-success" onclick="openResult()">打开结果</button>
+                <button class="btn-secondary" onclick="openDir()">打开目录</button>
             </div>
         </div>
         
-        <div class="section">
-            <div class="section-title">文件选择</div>
-            <div class="form-row">
-                <label>上传基准文件:</label>
-                <div class="file-input-wrapper">
-                    <input type="text" id="baseFile" placeholder="选择基准匹配列文件 (.xlsx)">
-                    <button class="btn-browse" onclick="browseFile('baseFile')">选择文件</button>
+        <!-- Tab 2: 指标+维度比对 -->
+        <div id="tab2-content" class="tab-content">
+            <div class="section">
+                <div class="section-title">工作目录</div>
+                <div class="form-row">
+                    <label>目录路径:</label>
+                    <div class="file-input-wrapper">
+                        <input type="text" id="workDir2" value="''' + WORK_DIR.replace('\\', '\\\\').replace("'", "\\'") + '''">
+                        <button class="btn-browse" onclick="browseDir2()">选择目录</button>
+                    </div>
                 </div>
             </div>
-            <div class="form-row">
-                <label>上传输入1文件:</label>
-                <div class="file-input-wrapper">
-                    <input type="text" id="dataAFile" placeholder="选择输入1数据文件 (.xlsx)">
-                    <button class="btn-browse" onclick="browseFile('dataAFile')">选择文件</button>
+            
+            <div class="section">
+                <div class="section-title">文件选择</div>
+                <div class="form-row">
+                    <label>上传表A文件:</label>
+                    <div class="file-input-wrapper">
+                        <input type="text" id="tableAFile" placeholder="选择表A数据文件 (.xlsx)">
+                        <button class="btn-browse" onclick="browseFile2('tableAFile')">选择文件</button>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label>上传基准表（表B）:</label>
+                    <div class="file-input-wrapper">
+                        <input type="text" id="tableBFile" placeholder="选择基准表数据文件 (.xlsx)">
+                        <button class="btn-browse" onclick="browseFile2('tableBFile')">选择文件</button>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label>输出文件名:</label>
+                    <input type="text" id="outputFile2" value="dimension_compare_result.xlsx">
                 </div>
             </div>
-            <div class="form-row">
-                <label>上传输入2文件:</label>
-                <div class="file-input-wrapper">
-                    <input type="text" id="dataBFile" placeholder="选择输入2数据文件 (.xlsx)">
-                    <button class="btn-browse" onclick="browseFile('dataBFile')">选择文件</button>
+            
+            <div class="section">
+                <div class="section-title">比对设置</div>
+                <div class="form-row">
+                    <label>基准列数量:</label>
+                    <input type="number" id="keyColumns" value="1" min="1" max="10" step="1" 
+                           style="width: 80px; margin: 0 10px;">
+                    <span class="color-text">列（前N列作为维度列进行匹配）</span>
+                </div>
+                <div class="form-row">
+                    <label>差异阈值:</label>
+                    <input type="number" id="diffThreshold" value="1" min="0" step="0.1" 
+                           style="width: 80px; margin: 0 10px;">
+                    <span class="color-text">（差异值绝对值 &lt; 阈值为绿色，≥ 阈值为红色）</span>
+                </div>
+                <div class="hint-text">
+                    说明：<br>
+                    1. 以前N列为基准进行行匹配（忽略空格、下划线、中英文括号差异）<br>
+                    2. 指标列以B表为基准，只保留B表有的指标列<br>
+                    3. 每个指标列显示差异值（A - B），根据阈值标记颜色<br>
+                    4. 不匹配的行标记为"{文件名}表error"
                 </div>
             </div>
-            <div class="form-row">
-                <label>输出文件名:</label>
-                <input type="text" id="outputFile" value="compare_result.xlsx">
+            
+            <div class="btn-row">
+                <button class="btn-secondary" onclick="generateDimensionTest()">生成测试文件</button>
+                <button class="btn-primary" onclick="runDimensionCompare()">🚀 开始对比</button>
+                <button class="btn-success" onclick="openDimensionResult()">打开结果</button>
+                <button class="btn-secondary" onclick="openDir2()">打开目录</button>
             </div>
         </div>
         
-        <div class="section">
-            <div class="section-title">比对设置</div>
-            <div class="form-row">
-                <label>小数位数:</label>
-                <input type="number" id="decimalPlaces" value="6" min="0" max="10" step="1" 
-                       style="width: 80px; margin: 0 10px;">
-                <span class="color-text">位（用于差额和百分比）</span>
-            </div>
-            <div class="form-row" style="margin-top: 10px;">
-                <label>阈值设置:</label>
-                <span class="color-text">百分比绝对值 < </span>
-                <input type="number" id="greenTh" value="1.0" step="0.1" style="width: 80px; margin: 0 5px;">
-                <span class="color-text">% 或 A=B 时为绿色，否则为红色</span>
-            </div>
-            <div class="color-row" style="margin-top: 10px;">
-                <div class="color-box green-box"></div>
-                <span class="color-text" style="margin-left: 10px;">绿色: A=B 或 |差异%| < 阈值</span>
-            </div>
-            <div class="color-row">
-                <div class="color-box red-box"></div>
-                <span class="color-text" style="margin-left: 10px;">红色: 其他情况</span>
-            </div>
-        </div>
-        
-        <div class="btn-row">
-            <button class="btn-secondary" onclick="generateTest()">生成测试文件</button>
-            <button class="btn-primary" onclick="runCompare()">🚀 开始对比</button>
-            <button class="btn-success" onclick="openResult()">打开结果</button>
-            <button class="btn-secondary" onclick="openDir()">打开目录</button>
-        </div>
-        
+        <!-- 运行日志（共享） -->
         <div class="section" style="margin-top: 20px;">
             <div class="section-title">运行日志</div>
             <div class="log-box" id="logBox">欢迎使用Excel比对工具!
-步骤: 1.设置目录 → 2.输入文件路径 → 3.点击开始对比
+[指标比对] 基于基准文件匹配横向数据
+[指标+维度比对] 基于维度列匹配完整数据表
 
 提示: 请直接输入文件的完整路径，或先点击"生成测试文件"</div>
         </div>
     </div>
     
     <script>
+        // Tab切换
+        function switchTab(tabNum) {
+            document.querySelectorAll('.tab').forEach((t, i) => {
+                t.classList.toggle('active', i === tabNum - 1);
+            });
+            document.querySelectorAll('.tab-content').forEach((t, i) => {
+                t.classList.toggle('active', i === tabNum - 1);
+            });
+            log('\\n切换到: ' + (tabNum === 1 ? '[指标比对]' : '[指标+维度比对]'));
+        }
+        
         function log(msg) {
             const box = document.getElementById('logBox');
             box.textContent += '\\n' + msg;
@@ -248,8 +368,9 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             }
         }
         
+        // Tab 1 功能（保持不变）
         async function generateTest() {
-            log('\\n生成测试文件...');
+            log('\\n[指标比对] 生成测试文件...');
             const workDir = document.getElementById('workDir').value;
             const result = await api('generate_test', {workDir});
             if (result.success) {
@@ -279,7 +400,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             if (!data.dataBFile) { alert('请输入输入2文件路径'); return; }
             
             log('\\n========================================');
-            log('开始对比...');
+            log('[指标比对] 开始对比...');
             log('小数位数: ' + data.decimalPlaces + ' 位');
             log('阈值: |差异%| < ' + data.greenTh + '% 或 A=B 为绿色');
             
@@ -324,6 +445,83 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 log('工作目录: ' + result.path);
             }
         }
+        
+        // Tab 2 功能（新增）
+        async function generateDimensionTest() {
+            log('\\n[指标+维度比对] 生成测试文件...');
+            const workDir = document.getElementById('workDir2').value;
+            const result = await api('generate_dimension_test', {workDir});
+            if (result.success) {
+                log(result.message);
+                document.getElementById('tableAFile').value = result.tableAFile;
+                document.getElementById('tableBFile').value = result.tableBFile;
+                log('文件路径已自动填充!');
+            } else {
+                log('错误: ' + result.message);
+            }
+        }
+        
+        async function runDimensionCompare() {
+            const data = {
+                workDir: document.getElementById('workDir2').value,
+                tableAFile: document.getElementById('tableAFile').value,
+                tableBFile: document.getElementById('tableBFile').value,
+                keyColumns: parseInt(document.getElementById('keyColumns').value),
+                diffThreshold: parseFloat(document.getElementById('diffThreshold').value),
+                outputFile: document.getElementById('outputFile2').value
+            };
+            
+            if (!data.tableAFile) { alert('请输入表A文件路径'); return; }
+            if (!data.tableBFile) { alert('请输入表B文件路径'); return; }
+            if (data.keyColumns < 1) { alert('基准列数量至少为1'); return; }
+            
+            log('\\n========================================');
+            log('[指标+维度比对] 开始对比...');
+            log('基准列数量: 前' + data.keyColumns + '列');
+            log('差异阈值: ' + data.diffThreshold);
+            log('匹配规则: 忽略空格、下划线、括号差异');
+            
+            const result = await api('dimension_compare', data);
+            if (result.success) {
+                log(result.message);
+                alert('对比完成!');
+            } else {
+                log('错误: ' + result.message);
+                alert('对比失败: ' + result.message);
+            }
+        }
+        
+        async function openDimensionResult() {
+            const workDir = document.getElementById('workDir2').value;
+            const outputFile = document.getElementById('outputFile2').value;
+            await api('open_file', {path: workDir + '/' + outputFile});
+        }
+        
+        async function openDir2() {
+            const workDir = document.getElementById('workDir2').value;
+            await api('open_dir', {path: workDir});
+        }
+        
+        async function browseFile2(inputId) {
+            log('正在打开文件选择对话框...');
+            const workDir = document.getElementById('workDir2').value;
+            const result = await api('browse_file', {workDir});
+            if (result.success && result.path) {
+                document.getElementById(inputId).value = result.path;
+                log('已选择: ' + result.path);
+            } else if (result.message) {
+                log(result.message);
+            }
+        }
+        
+        async function browseDir2() {
+            log('正在打开目录选择对话框...');
+            const result = await api('browse_dir', {});
+            if (result.success && result.path) {
+                document.getElementById('workDir2').value = result.path;
+                log('工作目录: ' + result.path);
+            }
+        }
     </script>
 </body>
 </html>
@@ -354,6 +552,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                 result = self.generate_test(data.get('workDir', WORK_DIR))
             elif action == 'compare':
                 result = self.run_compare(data)
+            elif action == 'generate_dimension_test':
+                result = self.generate_dimension_test(data.get('workDir', WORK_DIR))
+            elif action == 'dimension_compare':
+                result = self.run_dimension_compare(data)
             elif action == 'open_file':
                 result = self.open_file(data.get('path', ''))
             elif action == 'open_dir':
@@ -439,6 +641,118 @@ class RequestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             return {'success': False, 'message': str(e)}
     
+    def generate_dimension_test(self, workdir):
+        """生成维度比对测试文件"""
+        if not OPENPYXL_OK:
+            return {'success': False, 'message': '缺少openpyxl库'}
+        
+        if not os.path.exists(workdir):
+            return {'success': False, 'message': '工作目录不存在'}
+        
+        try:
+            # 表A：包含维度列和指标列
+            wb = Workbook()
+            ws = wb.active
+            
+            # 表头
+            headers_a = ['险种', '渠道', '指标1', '指标2', '指标3']
+            for col, h in enumerate(headers_a, 1):
+                ws.cell(row=1, column=col, value=h)
+            
+            # 数据行
+            data_a = [
+                ['车险', '银行', 1000, 2000, 3000],
+                ['车_险', '电销', 1100, 2100, 3100],  # 维度键带下划线
+                ['健康险', '代理', 1200, 2200, 3200],
+                ['意外险（短期）', '网销', 1300, 2300, 3300],  # 维度键带括号
+                ['寿险 A', '银行', 1400, 2400, 3400],  # 维度键带空格
+                ['财产险', '直销', 1500, 2500, 3500],  # A独有
+            ]
+            
+            for row_idx, row_data in enumerate(data_a, 2):
+                for col_idx, value in enumerate(row_data, 1):
+                    ws.cell(row=row_idx, column=col_idx, value=value)
+            
+            table_a_path = os.path.join(workdir, "test_table_a.xlsx")
+            wb.save(table_a_path)
+            
+            # 表B：包含维度列和指标列（部分不同）
+            wb = Workbook()
+            ws = wb.active
+            
+            # 表头（指标2不在B表中，会被过滤）
+            headers_b = ['险种', '渠道', '指标1', '指标3', '指标4']
+            for col, h in enumerate(headers_b, 1):
+                ws.cell(row=1, column=col, value=h)
+            
+            # 数据行
+            data_b = [
+                ['车险', '银行', 1000, 3000, 4000],  # 完全匹配
+                ['车险', '电销', 1100, 3100, 4100],  # 能匹配（忽略下划线）
+                ['健康险', '代理', 1250, 3250, 4250],  # 数据不同
+                ['意外险【短期】', '网销', 1300, 3300, 4300],  # 能匹配（忽略括号）
+                ['寿险A', '银行', 1400, 3400, 4400],  # 能匹配（忽略空格）
+                ['重疾险', '网销', 1600, 3600, 4600],  # B独有
+            ]
+            
+            for row_idx, row_data in enumerate(data_b, 2):
+                for col_idx, value in enumerate(row_data, 1):
+                    ws.cell(row=row_idx, column=col_idx, value=value)
+            
+            table_b_path = os.path.join(workdir, "test_table_b.xlsx")
+            wb.save(table_b_path)
+            
+            return {
+                'success': True,
+                'message': '维度比对测试文件已生成:\n  - test_table_a.xlsx (表A)\n  - test_table_b.xlsx (表B)\n\n说明:\n  - 前2列为维度列（险种、渠道）\n  - 包含完全匹配、模糊匹配、不匹配的行\n  - 表B的指标列为基准',
+                'tableAFile': table_a_path,
+                'tableBFile': table_b_path
+            }
+            
+        except Exception as e:
+            import traceback
+            return {'success': False, 'message': str(e) + '\n' + traceback.format_exc()}
+    
+    def run_dimension_compare(self, data):
+        """运行维度比对"""
+        if not OPENPYXL_OK:
+            return {'success': False, 'message': '缺少openpyxl库'}
+        
+        try:
+            workdir = data.get('workDir', WORK_DIR)
+            table_a_file = data.get('tableAFile', '')
+            table_b_file = data.get('tableBFile', '')
+            key_columns = int(data.get('keyColumns', 1))
+            diff_threshold = float(data.get('diffThreshold', 1))
+            output_file = data.get('outputFile', 'dimension_compare_result.xlsx')
+            
+            # 读取表A和表B
+            table_a = self._read_full_table(table_a_file)
+            table_b = self._read_full_table(table_b_file)
+            
+            # 提取文件名（用于error标记）
+            table_a_name = os.path.basename(table_a_file).replace('.xlsx', '').replace('.xls', '')
+            table_b_name = os.path.basename(table_b_file).replace('.xlsx', '').replace('.xls', '')
+            
+            # 生成结果
+            output_path = os.path.join(workdir, output_file)
+            self._create_dimension_result(
+                output_path, table_a, table_b, key_columns,
+                table_a_name, table_b_name, diff_threshold
+            )
+            
+            return {
+                'success': True,
+                'message': '维度比对完成!\n表A: {} 行\n表B: {} 行\n基准列: 前{}列\n差异阈值: {}\n结果已保存: {}'.format(
+                    len(table_a['data']), len(table_b['data']), key_columns, diff_threshold, output_file
+                )
+            }
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {'success': False, 'message': str(e)}
+    
     def run_compare(self, data):
         """运行对比"""
         if not OPENPYXL_OK:
@@ -460,9 +774,14 @@ class RequestHandler(BaseHTTPRequestHandler):
             data_a = self._read_horizontal(data_a_file)
             data_b = self._read_horizontal(data_b_file)
             
+            # 提取文件名（用于表头显示）
+            data_a_name = os.path.basename(data_a_file).replace('.xlsx', '').replace('.xls', '')
+            data_b_name = os.path.basename(data_b_file).replace('.xlsx', '').replace('.xls', '')
+            
             # 生成结果
             output_path = os.path.join(workdir, output_file)
-            self._create_result(output_path, base_names, data_a, data_b, decimal_places, green_th)
+            self._create_result(output_path, base_names, data_a, data_b, decimal_places, green_th, 
+                              data_a_name, data_b_name)
             
             return {
                 'success': True, 
@@ -541,7 +860,8 @@ class RequestHandler(BaseHTTPRequestHandler):
         except:
             return None
     
-    def _create_result(self, output, names, data_a, data_b, decimal_places, green_th):
+    def _create_result(self, output, names, data_a, data_b, decimal_places, green_th, 
+                      data_a_name='A', data_b_name='B'):
         GREEN = PatternFill(start_color="90EE90", end_color="90EE90", fill_type="solid")
         RED = PatternFill(start_color="FF6B6B", end_color="FF6B6B", fill_type="solid")
         HEADER = PatternFill(start_color="DCDCDC", end_color="DCDCDC", fill_type="solid")
@@ -558,8 +878,10 @@ class RequestHandler(BaseHTTPRequestHandler):
         # 构造格式化字符串（根据小数位数）
         format_str = '0.' + '0' * decimal_places
         
-        # 表头（第1行）
-        for col, h in enumerate(["指标名称", "A", "B", "差额(A-B)", "差异%"], 1):
+        # 表头（第1行）- 使用实际文件名
+        headers = ["指标名称", data_a_name, data_b_name, 
+                  f"差额({data_a_name}-{data_b_name})", "差异%"]
+        for col, h in enumerate(headers, 1):
             c = ws.cell(row=1, column=col, value=h)
             c.fill = HEADER
             c.font = Font(bold=True)
@@ -568,7 +890,8 @@ class RequestHandler(BaseHTTPRequestHandler):
         
         # 图例放在右上角 G1:H2（与表头同行及下一行）
         legend_col = 7  # G列
-        cell_g1 = ws.cell(row=1, column=legend_col, value="A=B 或 |差异%|<{}%".format(green_th))
+        cell_g1 = ws.cell(row=1, column=legend_col, 
+                         value="{}={} 或 |差异%|<{}%".format(data_a_name, data_b_name, green_th))
         cell_g1.border = border
         cell_g1.fill = LEGEND_FILL
         cell_g1.alignment = Alignment(horizontal='left')
@@ -812,6 +1135,257 @@ class RequestHandler(BaseHTTPRequestHandler):
         except Exception as e:
             import traceback
             return {'success': False, 'message': str(e) + '\n' + traceback.format_exc()}
+    
+    def _read_full_table(self, file_path):
+        """读取完整的Excel表格"""
+        wb = load_workbook(file_path, data_only=True)
+        ws = wb.active
+        
+        # 读取所有数据
+        data = []
+        headers = []
+        
+        for row_idx, row in enumerate(ws.iter_rows(values_only=True), 1):
+            if row_idx == 1:
+                # 表头
+                headers = [str(cell) if cell is not None else f'列{i}' for i, cell in enumerate(row, 1)]
+            else:
+                # 数据行（跳过全空行）
+                if any(cell is not None and str(cell).strip() != '' for cell in row):
+                    data.append(list(row))
+        
+        return {
+            'headers': headers,
+            'data': data
+        }
+    
+    def _normalize_dimension_key(self, key_values):
+        """
+        标准化维度键，忽略：
+        - 空格
+        - 下划线 _
+        - 中文括号 （）【】
+        - 英文括号 ()[]
+        """
+        import re
+        normalized = []
+        for val in key_values:
+            if val is None:
+                s = ''
+            else:
+                s = str(val).strip()
+            # 移除空格
+            s = s.replace(' ', '')
+            # 移除下划线
+            s = s.replace('_', '')
+            # 移除各种括号
+            s = re.sub(r'[()（）\[\]【】]', '', s)
+            normalized.append(s.lower())
+        return tuple(normalized)
+    
+    def _create_dimension_result(self, output, table_a, table_b, key_columns, 
+                                 table_a_name, table_b_name, diff_threshold):
+        """生成维度比对结果Excel"""
+        HEADER = PatternFill(start_color="DCDCDC", end_color="DCDCDC", fill_type="solid")
+        ERROR_FILL = PatternFill(start_color="FFE6E6", end_color="FFE6E6", fill_type="solid")
+        GREEN_FILL = PatternFill(start_color="90EE90", end_color="90EE90", fill_type="solid")
+        RED_FILL = PatternFill(start_color="FFB6C1", end_color="FFB6C1", fill_type="solid")
+        border = Border(
+            left=Side(style='thin'), right=Side(style='thin'),
+            top=Side(style='thin'), bottom=Side(style='thin')
+        )
+        
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "维度比对结果"
+        
+        headers_a = table_a['headers']
+        headers_b = table_b['headers']
+        data_a = table_a['data']
+        data_b = table_b['data']
+        
+        # 1. 确定维度列和指标列
+        dim_headers = headers_b[:key_columns]  # 维度列使用B表的表头
+        indicators_a = headers_a[key_columns:]  # A表的指标列
+        indicators_b = headers_b[key_columns:]  # B表的指标列
+        
+        # 2. 构建表头（维度列 + 指标列，指标列显示差异值）
+        result_headers = list(dim_headers) + list(indicators_b)
+        
+        # 写入表头
+        for col, h in enumerate(result_headers, 1):
+            c = ws.cell(row=1, column=col, value=h)
+            c.fill = HEADER
+            c.font = Font(bold=True)
+            c.alignment = Alignment(horizontal='center')
+            c.border = border
+        
+        # 3. 构建A和B的索引（标准化键 -> 行数据）
+        a_index = {}
+        for row_data in data_a:
+            key_vals = row_data[:key_columns]
+            norm_key = self._normalize_dimension_key(key_vals)
+            a_index[norm_key] = row_data
+        
+        b_index = {}
+        b_keys_order = []  # 保持B表的行顺序
+        for row_data in data_b:
+            key_vals = row_data[:key_columns]
+            norm_key = self._normalize_dimension_key(key_vals)
+            b_index[norm_key] = row_data
+            b_keys_order.append((norm_key, row_data[:key_columns]))
+        
+        # 4. 生成结果行
+        result_rows = []
+        matched_a_keys = set()
+        
+        # 遍历B表的行
+        for norm_key, original_key_vals in b_keys_order:
+            result_row = []
+            result_row_meta = []  # 存储元数据：类型（diff/error_a/error_b）和原始值
+            
+            # 维度列（来自B表）
+            for val in original_key_vals:
+                result_row.append(val)
+                result_row_meta.append(('dim', None))
+            
+            # 查找A表中是否有匹配的行
+            if norm_key in a_index:
+                # A和B都有
+                matched_a_keys.add(norm_key)
+                a_row = a_index[norm_key]
+                b_row = b_index[norm_key]
+                
+                # 填充指标列（显示差异值 A - B）
+                for ind in indicators_b:
+                    if ind in indicators_a:
+                        # A和B都有这个指标
+                        a_idx = headers_a.index(ind)
+                        b_idx = headers_b.index(ind)
+                        a_val = a_row[a_idx] if a_idx < len(a_row) else None
+                        b_val = b_row[b_idx] if b_idx < len(b_row) else None
+                        
+                        # 尝试计算差异
+                        diff_val = self._calculate_diff(a_val, b_val, table_a_name, table_b_name)
+                        result_row.append(diff_val)
+                        result_row_meta.append(('diff', diff_val))
+                    else:
+                        # B有但A没有的指标
+                        result_row.append(f'{table_a_name}表error')
+                        result_row_meta.append(('error', None))
+            else:
+                # 只有B有，A没有
+                for ind in indicators_b:
+                    result_row.append(f'{table_a_name}表error')
+                    result_row_meta.append(('error', None))
+            
+            result_rows.append((result_row, result_row_meta))
+        
+        # 5. 添加A表独有的行
+        for norm_key, a_row in a_index.items():
+            if norm_key not in matched_a_keys:
+                # 只有A有，B没有
+                result_row = []
+                result_row_meta = []
+                
+                # 维度列（来自A表）
+                original_key_vals = a_row[:key_columns]
+                for val in original_key_vals:
+                    result_row.append(val)
+                    result_row_meta.append(('dim', None))
+                
+                # 指标列
+                for ind in indicators_b:
+                    if ind in indicators_a:
+                        # A和B都有这个指标列，但这一行只在A表
+                        result_row.append(f'{table_b_name}表error')
+                        result_row_meta.append(('error', None))
+                    else:
+                        # 这个指标列只在B表，这一行也只在A表
+                        # 显示两个error
+                        result_row.append(f'{table_a_name}表error, {table_b_name}表error')
+                        result_row_meta.append(('error', None))
+                
+                result_rows.append((result_row, result_row_meta))
+        
+        # 6. 写入数据行，并根据差异值标记颜色
+        for row_idx, (row_data, row_meta) in enumerate(result_rows, 2):
+            for col_idx, (value, meta) in enumerate(zip(row_data, row_meta), 1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=value)
+                cell.border = border
+                
+                # 根据类型标记颜色
+                if meta[0] == 'error':
+                    # Error标记：红色背景
+                    cell.fill = ERROR_FILL
+                    cell.font = Font(color="FF0000")
+                elif meta[0] == 'diff' and isinstance(meta[1], (int, float)):
+                    # 差异值：根据阈值标记颜色
+                    abs_diff = abs(meta[1])
+                    if abs_diff < diff_threshold:
+                        cell.fill = GREEN_FILL
+                    else:
+                        cell.fill = RED_FILL
+        
+        # 7. 添加图例（放在右上角）
+        legend_start_col = len(result_headers) + 2
+        legend_row = 1
+        
+        # 图例标题
+        legend_title = ws.cell(row=legend_row, column=legend_start_col, value="图例")
+        legend_title.font = Font(bold=True)
+        legend_title.border = border
+        
+        # 绿色图例
+        legend_row += 1
+        green_cell = ws.cell(row=legend_row, column=legend_start_col, value=f"|差异| < {diff_threshold}")
+        green_cell.fill = GREEN_FILL
+        green_cell.border = border
+        
+        # 红色图例
+        legend_row += 1
+        red_cell = ws.cell(row=legend_row, column=legend_start_col, value=f"|差异| ≥ {diff_threshold}")
+        red_cell.fill = RED_FILL
+        red_cell.border = border
+        
+        # 8. 调整列宽
+        for col_idx, header in enumerate(result_headers, 1):
+            col_letter = get_column_letter(col_idx)
+            if col_idx <= key_columns:
+                ws.column_dimensions[col_letter].width = 18
+            else:
+                ws.column_dimensions[col_letter].width = 16
+        
+        # 图例列宽
+        legend_col_letter = get_column_letter(legend_start_col)
+        ws.column_dimensions[legend_col_letter].width = 20
+        
+        # 9. 保存文件
+        try:
+            wb.save(output)
+        except Exception as e:
+            if sys.platform == 'win32':
+                output_bytes = output.encode('utf-8')
+                wb.save(output_bytes.decode('utf-8'))
+            else:
+                raise e
+    
+    def _calculate_diff(self, a_val, b_val, table_a_name, table_b_name):
+        """计算差异值 A - B"""
+        # 如果任一值为空，返回error
+        if a_val is None or str(a_val).strip() == '':
+            return f'{table_a_name}表error'
+        if b_val is None or str(b_val).strip() == '':
+            return f'{table_b_name}表error'
+        
+        # 尝试转换为数值
+        try:
+            a_num = float(a_val)
+            b_num = float(b_val)
+            return a_num - b_num
+        except (ValueError, TypeError):
+            # 无法转换为数值，返回error
+            return f'无法计算差异'
 
 
 def main():

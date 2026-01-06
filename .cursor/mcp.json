@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "ai-unit-tests": {
+      "command": "/Users/li.wang/.cursor/extensions/credit-core.ai-unittest-generator-2.3.1/out/core/mcp-go/build/ai-unit-tests-darwin-arm64",
+      "args": [],
+      "env": {
+        "PROJECT_ROOT": "/Users/li.wang/ai-test-project/excel-tool"
+      }
+    }
+  }
+}
