@@ -3,6 +3,7 @@
 
 # 运行时依赖
 openpyxl==3.0.10
+xlrd==1.2.0
 
 # 打包工具
 pyinstaller==5.13.2

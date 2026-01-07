@@ -39,6 +39,12 @@ try:
 except ImportError:
     OPENPYXL_OK = False
 
+try:
+    import xlrd
+    XLRD_OK = True
+except ImportError:
+    XLRD_OK = False
+
 # 全局配置
 WORK_DIR = os.getcwd()
 PORT = 9527
@@ -169,6 +175,43 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             color: #888;
             margin-top: 8px;
             font-style: italic;
+        }
+        
+        /* Loading 样式 */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+        }
+        .loading-overlay.show { display: flex; }
+        .loading-content {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            margin: 0 auto 20px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading-text {
+            font-size: 16px;
+            color: #333;
+            font-weight: 500;
         }
     </style>
 </head>
@@ -355,6 +398,14 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             document.getElementById('logBox').textContent = '';
         }
         
+        function showLoading() {
+            document.getElementById('loadingOverlay').classList.add('show');
+        }
+        
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('show');
+        }
+        
         async function api(action, data) {
             try {
                 const resp = await fetch('/api', {
@@ -404,13 +455,24 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             log('小数位数: ' + data.decimalPlaces + ' 位');
             log('阈值: |差异%| < ' + data.greenTh + '% 或 A=B 为绿色');
             
-            const result = await api('compare', data);
-            if (result.success) {
-                log(result.message);
-                alert('对比完成!');
-            } else {
-                log('错误: ' + result.message);
-                alert('对比失败: ' + result.message);
+            // 显示loading
+            showLoading();
+            
+            try {
+                const result = await api('compare', data);
+                if (result.success) {
+                    log(result.message);
+                    alert('✅ 对比完成！');
+                } else {
+                    log('错误: ' + result.message);
+                    alert('❌ 对比失败: ' + result.message);
+                }
+            } catch (error) {
+                log('错误: ' + error.message);
+                alert('❌ 对比异常: ' + error.message);
+            } finally {
+                // 隐藏loading
+                hideLoading();
             }
         }
         
@@ -481,13 +543,24 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             log('差异阈值: ' + data.diffThreshold);
             log('匹配规则: 忽略空格、下划线、括号差异');
             
-            const result = await api('dimension_compare', data);
-            if (result.success) {
-                log(result.message);
-                alert('对比完成!');
-            } else {
-                log('错误: ' + result.message);
-                alert('对比失败: ' + result.message);
+            // 显示loading
+            showLoading();
+            
+            try {
+                const result = await api('dimension_compare', data);
+                if (result.success) {
+                    log(result.message);
+                    alert('✅ 对比完成！');
+                } else {
+                    log('错误: ' + result.message);
+                    alert('❌ 对比失败: ' + result.message);
+                }
+            } catch (error) {
+                log('错误: ' + error.message);
+                alert('❌ 对比异常: ' + error.message);
+            } finally {
+                // 隐藏loading
+                hideLoading();
             }
         }
         
@@ -523,6 +596,14 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             }
         }
     </script>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <div class="loading-text">正在比对，请稍候...</div>
+        </div>
+    </div>
 </body>
 </html>
 '''
@@ -533,6 +614,77 @@ class RequestHandler(BaseHTTPRequestHandler):
     
     def log_message(self, format, *args):
         pass  # 禁用默认日志
+    
+    def _convert_xls_to_xlsx(self, xls_path):
+        """将.xls文件转换为临时.xlsx文件
+        
+        Args:
+            xls_path: .xls文件路径
+            
+        Returns:
+            临时.xlsx文件路径，如果转换失败则返回None
+        """
+        if not XLRD_OK:
+            raise Exception('缺少xlrd库，无法读取.xls文件。请安装xlrd或将文件转换为.xlsx格式')
+        
+        try:
+            # 使用xlrd读取.xls文件
+            xls_book = xlrd.open_workbook(xls_path, formatting_info=False)
+            xls_sheet = xls_book.sheet_by_index(0)
+            
+            # 创建临时.xlsx文件
+            import tempfile
+            temp_fd, temp_path = tempfile.mkstemp(suffix='.xlsx')
+            os.close(temp_fd)
+            
+            # 使用openpyxl写入.xlsx
+            wb = Workbook()
+            ws = wb.active
+            
+            # 复制数据
+            for row_idx in range(xls_sheet.nrows):
+                for col_idx in range(xls_sheet.ncols):
+                    cell_value = xls_sheet.cell_value(row_idx, col_idx)
+                    # 处理不同的单元格类型
+                    if xls_sheet.cell_type(row_idx, col_idx) == xlrd.XL_CELL_DATE:
+                        # 日期类型需要特殊处理
+                        from datetime import datetime
+                        cell_value = xlrd.xldate_as_datetime(cell_value, xls_book.datemode)
+                    ws.cell(row=row_idx + 1, column=col_idx + 1, value=cell_value)
+            
+            wb.save(temp_path)
+            wb.close()
+            return temp_path
+            
+        except Exception as e:
+            raise Exception(f'转换.xls文件失败: {str(e)}')
+    
+    def _load_workbook_safe(self, file_path, data_only=True):
+        """安全加载workbook，自动处理.xls格式
+        
+        Args:
+            file_path: Excel文件路径
+            data_only: 是否只读取数据值（不读取公式）
+            
+        Returns:
+            (workbook对象, 临时文件路径或None)
+        """
+        temp_file = None
+        
+        # 检查文件扩展名
+        _, ext = os.path.splitext(file_path.lower())
+        
+        if ext == '.xls':
+            # 转换.xls为临时.xlsx
+            temp_file = self._convert_xls_to_xlsx(file_path)
+            file_path = temp_file
+        elif ext != '.xlsx' and ext != '.xlsm':
+            raise Exception(f'不支持的文件格式: {ext}。请使用.xlsx, .xlsm或.xls格式')
+        
+        # 加载workbook
+        wb = load_workbook(file_path, data_only=data_only)
+        
+        return wb, temp_file
     
     def do_GET(self):
         self.send_response(200)
@@ -802,15 +954,23 @@ class RequestHandler(BaseHTTPRequestHandler):
             # Windows上确保路径是Unicode字符串
             path = os.path.normpath(path)
         
-        wb = load_workbook(path, data_only=True)
-        ws = wb.active
-        names = []
-        for row in range(2, ws.max_row + 1):
-            v = ws.cell(row=row, column=1).value
-            if v:
-                names.append(str(v).strip())
-        wb.close()
-        return names
+        wb, temp_file = self._load_workbook_safe(path, data_only=True)
+        try:
+            ws = wb.active
+            names = []
+            for row in range(2, ws.max_row + 1):
+                v = ws.cell(row=row, column=1).value
+                if v:
+                    names.append(str(v).strip())
+            return names
+        finally:
+            wb.close()
+            # 清理临时文件
+            if temp_file and os.path.exists(temp_file):
+                try:
+                    os.unlink(temp_file)
+                except:
+                    pass
     
     def _read_horizontal(self, path):
         # 处理中文路径
@@ -818,17 +978,25 @@ class RequestHandler(BaseHTTPRequestHandler):
             # Windows上确保路径是Unicode字符串
             path = os.path.normpath(path)
         
-        wb = load_workbook(path, data_only=True)
-        ws = wb.active
-        data = {}
-        for col in range(1, ws.max_column + 1):
-            h = ws.cell(row=1, column=col).value
-            if h:
-                # 保存原始key和标准化key的映射
-                original_key = str(h).strip()
-                data[original_key] = ws.cell(row=2, column=col).value
-        wb.close()
-        return data
+        wb, temp_file = self._load_workbook_safe(path, data_only=True)
+        try:
+            ws = wb.active
+            data = {}
+            for col in range(1, ws.max_column + 1):
+                h = ws.cell(row=1, column=col).value
+                if h:
+                    # 保存原始key和标准化key的映射
+                    original_key = str(h).strip()
+                    data[original_key] = ws.cell(row=2, column=col).value
+            return data
+        finally:
+            wb.close()
+            # 清理临时文件
+            if temp_file and os.path.exists(temp_file):
+                try:
+                    os.unlink(temp_file)
+                except:
+                    pass
     
     def _normalize_key(self, key):
         """标准化指标名称，只忽略下划线"""
@@ -1147,35 +1315,55 @@ class RequestHandler(BaseHTTPRequestHandler):
     
     def _read_full_table(self, file_path):
         """读取完整的Excel表格"""
-        wb = load_workbook(file_path, data_only=True)
-        ws = wb.active
-        
-        # 读取所有数据
-        data = []
-        headers = []
-        
-        for row_idx, row in enumerate(ws.iter_rows(values_only=True), 1):
-            if row_idx == 1:
-                # 表头
-                headers = [str(cell) if cell is not None else f'列{i}' for i, cell in enumerate(row, 1)]
-            else:
-                # 数据行（跳过全空行）
-                if any(cell is not None and str(cell).strip() != '' for cell in row):
-                    data.append(list(row))
-        
-        return {
-            'headers': headers,
-            'data': data
-        }
-    
-    def _copy_sheet_from_file(self, target_wb, source_file, sheet_name):
-        """从源文件复制sheet到目标workbook"""
+        wb, temp_file = self._load_workbook_safe(file_path, data_only=True)
         try:
-            source_wb = load_workbook(source_file, data_only=True)
+            ws = wb.active
+            
+            # 读取所有数据
+            data = []
+            headers = []
+            
+            for row_idx, row in enumerate(ws.iter_rows(values_only=True), 1):
+                if row_idx == 1:
+                    # 表头
+                    headers = [str(cell) if cell is not None else f'列{i}' for i, cell in enumerate(row, 1)]
+                else:
+                    # 数据行（跳过全空行）
+                    if any(cell is not None and str(cell).strip() != '' for cell in row):
+                        data.append(list(row))
+            
+            return {
+                'headers': headers,
+                'data': data
+            }
+        finally:
+            wb.close()
+            # 清理临时文件
+            if temp_file and os.path.exists(temp_file):
+                try:
+                    os.unlink(temp_file)
+                except:
+                    pass
+    
+    def _copy_sheet_from_file(self, target_wb, source_file, sheet_name, highlight_rows=None):
+        """从源文件复制sheet到目标workbook，可选择高亮指定行
+        
+        Args:
+            target_wb: 目标workbook
+            source_file: 源文件路径
+            sheet_name: 新sheet名称
+            highlight_rows: 需要标红的行号列表（从1开始，包含表头）
+        """
+        temp_file = None
+        try:
+            source_wb, temp_file = self._load_workbook_safe(source_file, data_only=True)
             source_ws = source_wb.active
             
             # 创建新sheet
             target_ws = target_wb.create_sheet(title=sheet_name)
+            
+            # 红色填充（用于标识不匹配的行）
+            HIGHLIGHT_FILL = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
             
             # 复制数据
             for row in source_ws.iter_rows():
@@ -1193,6 +1381,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                             target_cell.alignment = cell.alignment.copy()
                         except:
                             pass
+                    
+                    # 如果该行需要高亮，覆盖背景色
+                    if highlight_rows and cell.row in highlight_rows:
+                        target_cell.fill = HIGHLIGHT_FILL
             
             # 复制列宽
             for col_letter in source_ws.column_dimensions:
@@ -1206,6 +1398,13 @@ class RequestHandler(BaseHTTPRequestHandler):
                     
         except Exception as e:
             print(f"复制sheet失败: {e}")
+        finally:
+            # 清理临时文件
+            if temp_file and os.path.exists(temp_file):
+                try:
+                    os.unlink(temp_file)
+                except:
+                    pass
     
     def _normalize_dimension_key(self, key_values):
         """
@@ -1239,6 +1438,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         ERROR_FILL = PatternFill(start_color="FFE6E6", end_color="FFE6E6", fill_type="solid")
         GREEN_FILL = PatternFill(start_color="90EE90", end_color="90EE90", fill_type="solid")
         RED_FILL = PatternFill(start_color="FFB6C1", end_color="FFB6C1", fill_type="solid")
+        ROW_MISSING_FILL = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")  # 行不匹配的红色标识
         border = Border(
             left=Side(style='thin'), right=Side(style='thin'),
             top=Side(style='thin'), bottom=Side(style='thin')
@@ -1269,29 +1469,36 @@ class RequestHandler(BaseHTTPRequestHandler):
             c.alignment = Alignment(horizontal='center')
             c.border = border
         
-        # 3. 构建A和B的索引（标准化键 -> 行数据）
+        # 3. 构建A和B的索引（标准化键 -> (行数据, 原始行号)）
         a_index = {}
-        for row_data in data_a:
+        a_row_nums = {}  # 标准化键 -> 源文件行号（从2开始，1是表头）
+        for idx, row_data in enumerate(data_a):
             key_vals = row_data[:key_columns]
             norm_key = self._normalize_dimension_key(key_vals)
             a_index[norm_key] = row_data
+            a_row_nums[norm_key] = idx + 2  # +2 因为: data_a是从0开始，源文件第1行是表头
         
         b_index = {}
+        b_row_nums = {}  # 标准化键 -> 源文件行号
         b_keys_order = []  # 保持B表的行顺序
-        for row_data in data_b:
+        for idx, row_data in enumerate(data_b):
             key_vals = row_data[:key_columns]
             norm_key = self._normalize_dimension_key(key_vals)
             b_index[norm_key] = row_data
+            b_row_nums[norm_key] = idx + 2
             b_keys_order.append((norm_key, row_data[:key_columns]))
         
         # 4. 生成结果行
         result_rows = []
         matched_a_keys = set()
+        unmatched_a_rows = set()  # A表中不匹配的行号
+        unmatched_b_rows = set()  # B表中不匹配的行号
         
         # 遍历B表的行
         for norm_key, original_key_vals in b_keys_order:
             result_row = []
             result_row_meta = []  # 存储元数据：类型（diff/error_a/error_b）和原始值
+            row_type = 'both'  # 记录行类型：'both'（都有）、'only_a'（只在A）、'only_b'（只在B）
             
             # 维度列（来自B表）
             for val in original_key_vals:
@@ -1304,6 +1511,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 matched_a_keys.add(norm_key)
                 a_row = a_index[norm_key]
                 b_row = b_index[norm_key]
+                row_type = 'both'
                 
                 # 填充指标列（显示差异值 A - B）
                 for ind in indicators_b:
@@ -1324,11 +1532,13 @@ class RequestHandler(BaseHTTPRequestHandler):
                         result_row_meta.append(('error', None))
             else:
                 # 只有B有，A没有
+                row_type = 'only_b'
+                unmatched_b_rows.add(b_row_nums[norm_key])  # 记录B表中不匹配的行号
                 for ind in indicators_b:
                     result_row.append(f'{table_a_name}表error')
                     result_row_meta.append(('error', None))
             
-            result_rows.append((result_row, result_row_meta))
+            result_rows.append((result_row, result_row_meta, row_type))
         
         # 5. 添加A表独有的行
         for norm_key, a_row in a_index.items():
@@ -1336,6 +1546,8 @@ class RequestHandler(BaseHTTPRequestHandler):
                 # 只有A有，B没有
                 result_row = []
                 result_row_meta = []
+                row_type = 'only_a'
+                unmatched_a_rows.add(a_row_nums[norm_key])  # 记录A表中不匹配的行号
                 
                 # 维度列（来自A表）
                 original_key_vals = a_row[:key_columns]
@@ -1355,15 +1567,15 @@ class RequestHandler(BaseHTTPRequestHandler):
                         result_row.append(f'{table_a_name}表error, {table_b_name}表error')
                         result_row_meta.append(('error', None))
                 
-                result_rows.append((result_row, result_row_meta))
+                result_rows.append((result_row, result_row_meta, row_type))
         
         # 6. 写入数据行，并根据差异值标记颜色
-        for row_idx, (row_data, row_meta) in enumerate(result_rows, 2):
+        for row_idx, (row_data, row_meta, row_type) in enumerate(result_rows, 2):
             for col_idx, (value, meta) in enumerate(zip(row_data, row_meta), 1):
                 cell = ws.cell(row=row_idx, column=col_idx, value=value)
                 cell.border = border
                 
-                # 根据类型标记颜色
+                # 根据单元格类型标记颜色
                 if meta[0] == 'error':
                     # Error标记：红色背景
                     cell.fill = ERROR_FILL
@@ -1397,6 +1609,12 @@ class RequestHandler(BaseHTTPRequestHandler):
         red_cell.fill = RED_FILL
         red_cell.border = border
         
+        # 源文件行不匹配说明
+        legend_row += 1
+        missing_cell = ws.cell(row=legend_row, column=legend_start_col, value="不匹配行已在源文件sheet中标红")
+        missing_cell.fill = ROW_MISSING_FILL
+        missing_cell.border = border
+        
         # 8. 调整列宽
         for col_idx, header in enumerate(result_headers, 1):
             col_letter = get_column_letter(col_idx)
@@ -1409,11 +1627,13 @@ class RequestHandler(BaseHTTPRequestHandler):
         legend_col_letter = get_column_letter(legend_start_col)
         ws.column_dimensions[legend_col_letter].width = 20
         
-        # 复制源文件到结果workbook
+        # 复制源文件到结果workbook，并标红不匹配的行
         if table_a_file and os.path.exists(table_a_file):
-            self._copy_sheet_from_file(wb, table_a_file, f"源文件_{table_a_name}")
+            self._copy_sheet_from_file(wb, table_a_file, f"源文件_{table_a_name}", 
+                                      highlight_rows=unmatched_a_rows if unmatched_a_rows else None)
         if table_b_file and os.path.exists(table_b_file):
-            self._copy_sheet_from_file(wb, table_b_file, f"源文件_{table_b_name}")
+            self._copy_sheet_from_file(wb, table_b_file, f"源文件_{table_b_name}",
+                                      highlight_rows=unmatched_b_rows if unmatched_b_rows else None)
         
         # 9. 保存文件
         try:
