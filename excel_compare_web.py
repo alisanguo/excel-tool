@@ -738,7 +738,8 @@ class RequestHandler(BaseHTTPRequestHandler):
             output_path = os.path.join(workdir, output_file)
             self._create_dimension_result(
                 output_path, table_a, table_b, key_columns,
-                table_a_name, table_b_name, diff_threshold
+                table_a_name, table_b_name, diff_threshold,
+                table_a_file, table_b_file
             )
             
             return {
@@ -781,7 +782,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             # 生成结果
             output_path = os.path.join(workdir, output_file)
             self._create_result(output_path, base_names, data_a, data_b, decimal_places, green_th, 
-                              data_a_name, data_b_name)
+                              data_a_name, data_b_name, base_file, data_a_file, data_b_file)
             
             return {
                 'success': True, 
@@ -861,7 +862,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             return None
     
     def _create_result(self, output, names, data_a, data_b, decimal_places, green_th, 
-                      data_a_name='A', data_b_name='B'):
+                      data_a_name='A', data_b_name='B', base_file=None, data_a_file=None, data_b_file=None):
         GREEN = PatternFill(start_color="90EE90", end_color="90EE90", fill_type="solid")
         RED = PatternFill(start_color="FF6B6B", end_color="FF6B6B", fill_type="solid")
         HEADER = PatternFill(start_color="DCDCDC", end_color="DCDCDC", fill_type="solid")
@@ -981,6 +982,14 @@ class RequestHandler(BaseHTTPRequestHandler):
         # 调整列宽
         for col, w in enumerate([22, 18, 18, 16, 16, 16, 10], 1):
             ws.column_dimensions[get_column_letter(col)].width = w
+        
+        # 复制源文件到结果workbook
+        if base_file and os.path.exists(base_file):
+            self._copy_sheet_from_file(wb, base_file, "基准文件")
+        if data_a_file and os.path.exists(data_a_file):
+            self._copy_sheet_from_file(wb, data_a_file, f"源文件_{data_a_name}")
+        if data_b_file and os.path.exists(data_b_file):
+            self._copy_sheet_from_file(wb, data_b_file, f"源文件_{data_b_name}")
         
         # 保存文件，处理中文路径编码
         try:
@@ -1159,6 +1168,45 @@ class RequestHandler(BaseHTTPRequestHandler):
             'data': data
         }
     
+    def _copy_sheet_from_file(self, target_wb, source_file, sheet_name):
+        """从源文件复制sheet到目标workbook"""
+        try:
+            source_wb = load_workbook(source_file, data_only=True)
+            source_ws = source_wb.active
+            
+            # 创建新sheet
+            target_ws = target_wb.create_sheet(title=sheet_name)
+            
+            # 复制数据
+            for row in source_ws.iter_rows():
+                for cell in row:
+                    target_cell = target_ws.cell(row=cell.row, column=cell.column, value=cell.value)
+                    
+                    # 复制格式
+                    if cell.has_style:
+                        try:
+                            target_cell.font = cell.font.copy()
+                            target_cell.border = cell.border.copy()
+                            target_cell.fill = cell.fill.copy()
+                            target_cell.number_format = cell.number_format
+                            target_cell.protection = cell.protection.copy()
+                            target_cell.alignment = cell.alignment.copy()
+                        except:
+                            pass
+            
+            # 复制列宽
+            for col_letter in source_ws.column_dimensions:
+                if col_letter in source_ws.column_dimensions:
+                    target_ws.column_dimensions[col_letter].width = source_ws.column_dimensions[col_letter].width
+            
+            # 复制行高
+            for row_num in source_ws.row_dimensions:
+                if row_num in source_ws.row_dimensions:
+                    target_ws.row_dimensions[row_num].height = source_ws.row_dimensions[row_num].height
+                    
+        except Exception as e:
+            print(f"复制sheet失败: {e}")
+    
     def _normalize_dimension_key(self, key_values):
         """
         标准化维度键，忽略：
@@ -1184,7 +1232,8 @@ class RequestHandler(BaseHTTPRequestHandler):
         return tuple(normalized)
     
     def _create_dimension_result(self, output, table_a, table_b, key_columns, 
-                                 table_a_name, table_b_name, diff_threshold):
+                                 table_a_name, table_b_name, diff_threshold,
+                                 table_a_file=None, table_b_file=None):
         """生成维度比对结果Excel"""
         HEADER = PatternFill(start_color="DCDCDC", end_color="DCDCDC", fill_type="solid")
         ERROR_FILL = PatternFill(start_color="FFE6E6", end_color="FFE6E6", fill_type="solid")
@@ -1359,6 +1408,12 @@ class RequestHandler(BaseHTTPRequestHandler):
         # 图例列宽
         legend_col_letter = get_column_letter(legend_start_col)
         ws.column_dimensions[legend_col_letter].width = 20
+        
+        # 复制源文件到结果workbook
+        if table_a_file and os.path.exists(table_a_file):
+            self._copy_sheet_from_file(wb, table_a_file, f"源文件_{table_a_name}")
+        if table_b_file and os.path.exists(table_b_file):
+            self._copy_sheet_from_file(wb, table_b_file, f"源文件_{table_b_name}")
         
         # 9. 保存文件
         try:
