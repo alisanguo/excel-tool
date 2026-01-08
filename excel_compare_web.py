@@ -213,6 +213,46 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             color: #333;
             font-weight: 500;
         }
+        
+        /* 多选框样式 */
+        .multiselect-container {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            background: white;
+        }
+        .multiselect-option {
+            padding: 6px 10px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            font-size: 14px;
+        }
+        .multiselect-option:hover {
+            background: #f0f0f0;
+        }
+        .multiselect-option input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        .column-selection-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .column-group {
+            flex: 1;
+        }
+        .column-group-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 8px;
+        }
     </style>
 </head>
 <body>
@@ -223,6 +263,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         <div class="tabs">
             <div class="tab active" onclick="switchTab(1)">指标比对</div>
             <div class="tab" onclick="switchTab(2)">指标+维度比对</div>
+            <div class="tab" onclick="switchTab(3)">聚合+比对</div>
         </div>
         
         <!-- Tab 1: 指标比对 -->
@@ -365,6 +406,80 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             </div>
         </div>
         
+        <!-- Tab 3: 聚合+比对 -->
+        <div id="tab3-content" class="tab-content">
+            <div class="section">
+                <div class="section-title">工作目录</div>
+                <div class="form-row">
+                    <label>目录路径:</label>
+                    <div class="file-input-wrapper">
+                        <input type="text" id="workDir3" value="''' + WORK_DIR.replace('\\', '\\\\').replace("'", "\\'") + '''">
+                        <button class="btn-browse" onclick="browseDir3()">选择目录</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">文件上传</div>
+                <div class="form-row">
+                    <label>表A文件:</label>
+                    <div class="file-input-wrapper">
+                        <input type="text" id="aggTableAFile" placeholder="选择表A文件 (.xlsx, .xls)">
+                        <button class="btn-browse" onclick="browseFile('aggTableAFile')">选择文件</button>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label>表B文件:</label>
+                    <div class="file-input-wrapper">
+                        <input type="text" id="aggTableBFile" placeholder="选择表B文件 (.xlsx, .xls)">
+                        <button class="btn-browse" onclick="browseFile('aggTableBFile')">选择文件</button>
+                    </div>
+                </div>
+                <div class="btn-row">
+                    <button class="btn-primary" onclick="parseHeaders()">🔍 解析维度与指标名</button>
+                </div>
+            </div>
+            
+            <div class="section" id="columnSelectionSection" style="display: none;">
+                <div class="section-title">列选择（从合并的表头中选择）</div>
+                <div class="column-selection-row">
+                    <div class="column-group">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div class="column-group-title" style="margin-bottom: 0;">维度列（用于分组）</div>
+                            <button class="btn-browse" style="padding: 4px 12px; font-size: 12px;" onclick="toggleAllDimensions()">全选/取消</button>
+                        </div>
+                        <div class="multiselect-container" id="dimensionColumns"></div>
+                    </div>
+                    <div class="column-group">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div class="column-group-title" style="margin-bottom: 0;">指标列（用于聚合求和）</div>
+                            <button class="btn-browse" style="padding: 4px 12px; font-size: 12px;" onclick="toggleAllIndicators()">全选/取消</button>
+                        </div>
+                        <div class="multiselect-container" id="indicatorColumns"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">比对参数</div>
+                <div class="form-row">
+                    <label>差异阈值:</label>
+                    <input type="number" id="aggDiffThreshold" value="1" step="0.1">
+                    <span style="margin-left: 10px; font-size: 13px; color: #666;">（绝对差异小于此值标绿）</span>
+                </div>
+                <div class="form-row">
+                    <label>输出文件名:</label>
+                    <input type="text" id="aggOutputFile" value="聚合比对结果.xlsx">
+                </div>
+            </div>
+            
+            <div class="btn-row">
+                <button class="btn-primary" onclick="runAggregateCompare()">🚀 开始聚合比对</button>
+                <button class="btn-success" onclick="openAggResult()">打开结果</button>
+                <button class="btn-secondary" onclick="openDir3()">打开目录</button>
+            </div>
+        </div>
+        
         <!-- 运行日志（共享） -->
         <div class="section" style="margin-top: 20px;">
             <div class="section-title">运行日志</div>
@@ -385,7 +500,8 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
             document.querySelectorAll('.tab-content').forEach((t, i) => {
                 t.classList.toggle('active', i === tabNum - 1);
             });
-            log('\\n切换到: ' + (tabNum === 1 ? '[指标比对]' : '[指标+维度比对]'));
+            const tabNames = ['[指标比对]', '[指标+维度比对]', '[聚合+比对]'];
+            log('\\n切换到: ' + tabNames[tabNum - 1]);
         }
         
         function log(msg) {
@@ -595,6 +711,217 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
                 log('工作目录: ' + result.path);
             }
         }
+        
+        // ============ Tab3: 聚合+比对 功能 ============
+        
+        async function browseDir3() {
+            log('正在打开目录选择对话框...');
+            const result = await api('browse_dir', {});
+            if (result.success && result.path) {
+                document.getElementById('workDir3').value = result.path;
+                log('工作目录: ' + result.path);
+            }
+        }
+        
+        async function parseHeaders() {
+            const tableAFile = document.getElementById('aggTableAFile').value;
+            const tableBFile = document.getElementById('aggTableBFile').value;
+            
+            if (!tableAFile) { alert('请选择表A文件'); return; }
+            if (!tableBFile) { alert('请选择表B文件'); return; }
+            
+            log('\\n========================================');
+            log('[聚合+比对] 解析表头...');
+            
+            const result = await api('parse_headers', { tableAFile, tableBFile });
+            
+            if (result.success) {
+                log('成功解析表头，共 ' + result.headers.length + ' 列');
+                log('列名: ' + result.headers.join(', '));
+                
+                // 显示列选择区域
+                document.getElementById('columnSelectionSection').style.display = 'block';
+                
+                // 填充维度列和指标列的多选框
+                const dimContainer = document.getElementById('dimensionColumns');
+                const indContainer = document.getElementById('indicatorColumns');
+                
+                dimContainer.innerHTML = '';
+                indContainer.innerHTML = '';
+                
+                result.headers.forEach(header => {
+                    // 维度列选项
+                    const dimOption = document.createElement('div');
+                    dimOption.className = 'multiselect-option';
+                    dimOption.innerHTML = `<input type="checkbox" value="${header}" onchange="updateDimCheckbox(this)"> ${header}`;
+                    dimContainer.appendChild(dimOption);
+                    
+                    // 指标列选项
+                    const indOption = document.createElement('div');
+                    indOption.className = 'multiselect-option';
+                    indOption.innerHTML = `<input type="checkbox" value="${header}" onchange="updateIndCheckbox(this)"> ${header}`;
+                    indContainer.appendChild(indOption);
+                });
+                
+                alert('✅ 表头解析完成！请选择维度列和指标列');
+            } else {
+                log('错误: ' + result.message);
+                alert('❌ 解析失败: ' + result.message);
+            }
+        }
+        
+        function updateDimCheckbox(checkbox) {
+            // 如果在维度列中选中，则在指标列中取消
+            if (checkbox.checked) {
+                const indCheckboxes = document.querySelectorAll('#indicatorColumns input[type="checkbox"]');
+                indCheckboxes.forEach(cb => {
+                    if (cb.value === checkbox.value) {
+                        cb.checked = false;
+                    }
+                });
+            }
+        }
+        
+        function updateIndCheckbox(checkbox) {
+            // 如果在指标列中选中，则在维度列中取消
+            if (checkbox.checked) {
+                const dimCheckboxes = document.querySelectorAll('#dimensionColumns input[type="checkbox"]');
+                dimCheckboxes.forEach(cb => {
+                    if (cb.value === checkbox.value) {
+                        cb.checked = false;
+                    }
+                });
+            }
+        }
+        
+        function toggleAllDimensions() {
+            const dimCheckboxes = document.querySelectorAll('#dimensionColumns input[type="checkbox"]');
+            const indCheckboxes = document.querySelectorAll('#indicatorColumns input[type="checkbox"]');
+            
+            // 获取已在指标列选中的项
+            const selectedInIndicators = new Set();
+            indCheckboxes.forEach(cb => {
+                if (cb.checked) {
+                    selectedInIndicators.add(cb.value);
+                }
+            });
+            
+            // 检查当前可选的维度列是否全部选中
+            let selectableCount = 0;
+            let selectedCount = 0;
+            dimCheckboxes.forEach(cb => {
+                if (!selectedInIndicators.has(cb.value)) {
+                    selectableCount++;
+                    if (cb.checked) selectedCount++;
+                }
+            });
+            
+            const shouldSelect = selectedCount < selectableCount;
+            
+            // 切换选中状态（跳过已在指标列选中的项）
+            dimCheckboxes.forEach(cb => {
+                if (!selectedInIndicators.has(cb.value)) {
+                    cb.checked = shouldSelect;
+                }
+            });
+        }
+        
+        function toggleAllIndicators() {
+            const dimCheckboxes = document.querySelectorAll('#dimensionColumns input[type="checkbox"]');
+            const indCheckboxes = document.querySelectorAll('#indicatorColumns input[type="checkbox"]');
+            
+            // 获取已在维度列选中的项
+            const selectedInDimensions = new Set();
+            dimCheckboxes.forEach(cb => {
+                if (cb.checked) {
+                    selectedInDimensions.add(cb.value);
+                }
+            });
+            
+            // 检查当前可选的指标列是否全部选中
+            let selectableCount = 0;
+            let selectedCount = 0;
+            indCheckboxes.forEach(cb => {
+                if (!selectedInDimensions.has(cb.value)) {
+                    selectableCount++;
+                    if (cb.checked) selectedCount++;
+                }
+            });
+            
+            const shouldSelect = selectedCount < selectableCount;
+            
+            // 切换选中状态（跳过已在维度列选中的项）
+            indCheckboxes.forEach(cb => {
+                if (!selectedInDimensions.has(cb.value)) {
+                    cb.checked = shouldSelect;
+                }
+            });
+        }
+        
+        async function runAggregateCompare() {
+            const tableAFile = document.getElementById('aggTableAFile').value;
+            const tableBFile = document.getElementById('aggTableBFile').value;
+            const workDir = document.getElementById('workDir3').value;
+            const outputFile = document.getElementById('aggOutputFile').value;
+            const diffThreshold = parseFloat(document.getElementById('aggDiffThreshold').value);
+            
+            // 获取选中的维度列和指标列
+            const dimColumns = Array.from(document.querySelectorAll('#dimensionColumns input[type="checkbox"]:checked')).map(cb => cb.value);
+            const indColumns = Array.from(document.querySelectorAll('#indicatorColumns input[type="checkbox"]:checked')).map(cb => cb.value);
+            
+            if (!tableAFile || !tableBFile) { alert('请先选择表A和表B文件'); return; }
+            if (indColumns.length === 0) { alert('请至少选择一个指标列'); return; }
+            
+            const data = {
+                workDir, tableAFile, tableBFile, outputFile,
+                dimColumns, indColumns, diffThreshold
+            };
+            
+            log('\\n========================================');
+            log('[聚合+比对] 开始处理...');
+            log('维度列: ' + dimColumns.join(', '));
+            log('指标列: ' + indColumns.join(', '));
+            log('差异阈值: ' + diffThreshold);
+            
+            showLoading();
+            
+            try {
+                const result = await api('aggregate_compare', data);
+                if (result.success) {
+                    log(result.message);
+                    alert('✅ 聚合比对完成！');
+                } else {
+                    log('错误: ' + result.message);
+                    alert('❌ 处理失败: ' + result.message);
+                }
+            } catch (error) {
+                log('错误: ' + error.message);
+                alert('❌ 处理异常: ' + error.message);
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        async function openAggResult() {
+            const workDir = document.getElementById('workDir3').value;
+            const outputFile = document.getElementById('aggOutputFile').value;
+            const fullPath = workDir + '/' + outputFile;
+            
+            log('打开文件: ' + fullPath);
+            const result = await api('open_file', { path: fullPath });
+            if (!result.success) {
+                alert('无法打开文件: ' + result.message);
+            }
+        }
+        
+        async function openDir3() {
+            const workDir = document.getElementById('workDir3').value;
+            log('打开目录: ' + workDir);
+            const result = await api('open_dir', { path: workDir });
+            if (!result.success) {
+                alert('无法打开目录: ' + result.message);
+            }
+        }
     </script>
     
     <!-- Loading Overlay -->
@@ -708,6 +1035,10 @@ class RequestHandler(BaseHTTPRequestHandler):
                 result = self.generate_dimension_test(data.get('workDir', WORK_DIR))
             elif action == 'dimension_compare':
                 result = self.run_dimension_compare(data)
+            elif action == 'parse_headers':
+                result = self.parse_table_headers(data)
+            elif action == 'aggregate_compare':
+                result = self.run_aggregate_compare(data)
             elif action == 'open_file':
                 result = self.open_file(data.get('path', ''))
             elif action == 'open_dir':
@@ -899,6 +1230,96 @@ class RequestHandler(BaseHTTPRequestHandler):
                 'message': '维度比对完成!\n表A: {} 行\n表B: {} 行\n基准列: 前{}列\n差异阈值: {}\n结果已保存: {}'.format(
                     len(table_a['data']), len(table_b['data']), key_columns, diff_threshold, output_file
                 )
+            }
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {'success': False, 'message': str(e)}
+    
+    def parse_table_headers(self, data):
+        """解析表A和表B的表头，去重后返回"""
+        if not OPENPYXL_OK:
+            return {'success': False, 'message': '缺少openpyxl库'}
+        
+        try:
+            table_a_file = data.get('tableAFile', '')
+            table_b_file = data.get('tableBFile', '')
+            
+            if not table_a_file or not table_b_file:
+                return {'success': False, 'message': '请提供表A和表B文件路径'}
+            
+            # 读取两个表的表头
+            table_a = self._read_full_table(table_a_file)
+            table_b = self._read_full_table(table_b_file)
+            
+            # 合并表头并去重（保持顺序，忽略下划线、空格和括号的差异）
+            all_headers = []
+            seen = set()  # 存储标准化后的字符串
+            for header in table_a['headers'] + table_b['headers']:
+                normalized = self._normalize_string(header)
+                if normalized not in seen:
+                    all_headers.append(header)  # 保存原始列名
+                    seen.add(normalized)
+            
+            return {
+                'success': True,
+                'headers': all_headers,
+                'message': f'成功解析表头，共{len(all_headers)}列'
+            }
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {'success': False, 'message': str(e)}
+    
+    def run_aggregate_compare(self, data):
+        """运行聚合比对：对A和B分别聚合，然后比对"""
+        if not OPENPYXL_OK:
+            return {'success': False, 'message': '缺少openpyxl库'}
+        
+        try:
+            workdir = data.get('workDir', WORK_DIR)
+            table_a_file = data.get('tableAFile', '')
+            table_b_file = data.get('tableBFile', '')
+            dim_columns = data.get('dimColumns', [])
+            ind_columns = data.get('indColumns', [])
+            diff_threshold = float(data.get('diffThreshold', 1))
+            output_file = data.get('outputFile', '聚合比对结果.xlsx')
+            
+            if not ind_columns:
+                return {'success': False, 'message': '请至少选择一个指标列'}
+            
+            # 读取原始表
+            table_a_raw = self._read_full_table(table_a_file)
+            table_b_raw = self._read_full_table(table_b_file)
+            
+            # 提取文件名
+            table_a_name = os.path.basename(table_a_file).replace('.xlsx', '').replace('.xls', '')
+            table_b_name = os.path.basename(table_b_file).replace('.xlsx', '').replace('.xls', '')
+            
+            # 聚合A和B
+            agg_a = self._aggregate_table(table_a_raw, dim_columns, ind_columns, table_a_name)
+            agg_b = self._aggregate_table(table_b_raw, dim_columns, ind_columns, table_b_name)
+            
+            # 生成结果文件（5个sheet）
+            output_path = os.path.join(workdir, output_file)
+            self._create_aggregate_result(
+                output_path, 
+                agg_a, agg_b,
+                table_a_file, table_b_file,
+                table_a_name, table_b_name,
+                len(dim_columns), diff_threshold
+            )
+            
+            return {
+                'success': True,
+                'message': f'''聚合比对完成！
+表A聚合后: {len(agg_a['data'])} 行
+表B聚合后: {len(agg_b['data'])} 行
+维度列: {len(dim_columns)} 个
+指标列: {len(ind_columns)} 个
+结果已保存: {output_file}'''
             }
             
         except Exception as e:
@@ -1151,6 +1572,9 @@ class RequestHandler(BaseHTTPRequestHandler):
         for col, w in enumerate([22, 18, 18, 16, 16, 16, 10], 1):
             ws.column_dimensions[get_column_letter(col)].width = w
         
+        # 冻结表头（第1行）
+        ws.freeze_panes = 'A2'
+        
         # 复制源文件到结果workbook
         if base_file and os.path.exists(base_file):
             self._copy_sheet_from_file(wb, base_file, "基准文件")
@@ -1395,6 +1819,9 @@ class RequestHandler(BaseHTTPRequestHandler):
             for row_num in source_ws.row_dimensions:
                 if row_num in source_ws.row_dimensions:
                     target_ws.row_dimensions[row_num].height = source_ws.row_dimensions[row_num].height
+            
+            # 冻结表头
+            target_ws.freeze_panes = 'A2'
                     
         except Exception as e:
             print(f"复制sheet失败: {e}")
@@ -1406,6 +1833,26 @@ class RequestHandler(BaseHTTPRequestHandler):
                 except:
                     pass
     
+    def _normalize_string(self, s):
+        """
+        标准化字符串，忽略：
+        - 空格
+        - 下划线 _
+        - 中文括号 （）【】
+        - 英文括号 ()[]
+        """
+        import re
+        if s is None:
+            return ''
+        s = str(s).strip()
+        # 移除空格
+        s = s.replace(' ', '')
+        # 移除下划线
+        s = s.replace('_', '')
+        # 移除各种括号
+        s = re.sub(r'[()（）\[\]【】]', '', s)
+        return s.lower()
+    
     def _normalize_dimension_key(self, key_values):
         """
         标准化维度键，忽略：
@@ -1414,20 +1861,9 @@ class RequestHandler(BaseHTTPRequestHandler):
         - 中文括号 （）【】
         - 英文括号 ()[]
         """
-        import re
         normalized = []
         for val in key_values:
-            if val is None:
-                s = ''
-            else:
-                s = str(val).strip()
-            # 移除空格
-            s = s.replace(' ', '')
-            # 移除下划线
-            s = s.replace('_', '')
-            # 移除各种括号
-            s = re.sub(r'[()（）\[\]【】]', '', s)
-            normalized.append(s.lower())
+            normalized.append(self._normalize_string(val))
         return tuple(normalized)
     
     def _create_dimension_result(self, output, table_a, table_b, key_columns, 
@@ -1627,6 +2063,9 @@ class RequestHandler(BaseHTTPRequestHandler):
         legend_col_letter = get_column_letter(legend_start_col)
         ws.column_dimensions[legend_col_letter].width = 20
         
+        # 冻结表头
+        ws.freeze_panes = 'A2'
+        
         # 复制源文件到结果workbook，并标红不匹配的行
         if table_a_file and os.path.exists(table_a_file):
             self._copy_sheet_from_file(wb, table_a_file, f"源文件_{table_a_name}", 
@@ -1646,7 +2085,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 raise e
     
     def _calculate_diff(self, a_val, b_val, table_a_name, table_b_name):
-        """计算差异值 A - B"""
+        """计算差异值 B - A"""
         # 如果任一值为空，返回error
         if a_val is None or str(a_val).strip() == '':
             return f'{table_a_name}表error'
@@ -1657,12 +2096,319 @@ class RequestHandler(BaseHTTPRequestHandler):
         try:
             a_num = float(a_val)
             b_num = float(b_val)
-            return a_num - b_num
+            return b_num - a_num  # 修改为 B - A
         except (ValueError, TypeError):
             # 无法转换为数值，返回error
             return f'无法计算差异'
-
-
+    
+    def _aggregate_table(self, table_data, dim_columns, ind_columns, table_name):
+        """聚合表格数据：按维度列分组，对指标列求和
+        
+        Args:
+            table_data: 包含headers和data的字典
+            dim_columns: 维度列名列表
+            ind_columns: 指标列名列表
+            table_name: 表名（用于error标记）
+            
+        Returns:
+            聚合后的表格数据（headers和data）
+        """
+        headers = table_data['headers']
+        data = table_data['data']
+        
+        # 创建标准化列名到索引的映射
+        normalized_header_map = {}
+        for idx, header in enumerate(headers):
+            normalized = self._normalize_string(header)
+            normalized_header_map[normalized] = idx
+        
+        # 找到维度列和指标列的索引（使用标准化匹配）
+        dim_indices = []
+        for col in dim_columns:
+            normalized_col = self._normalize_string(col)
+            if normalized_col in normalized_header_map:
+                dim_indices.append(normalized_header_map[normalized_col])
+        
+        ind_indices = []
+        ind_names_in_table = []
+        for col in ind_columns:
+            normalized_col = self._normalize_string(col)
+            if normalized_col in normalized_header_map:
+                ind_indices.append(normalized_header_map[normalized_col])
+                ind_names_in_table.append(col)
+        
+        # 按维度分组聚合
+        groups = {}
+        for row in data:
+            # 构建维度键（使用标准化后的值，忽略下划线、空格和括号差异）
+            dim_values = [row[i] if i < len(row) else None for i in dim_indices]
+            dim_key = self._normalize_dimension_key(dim_values)
+            
+            if dim_key not in groups:
+                groups[dim_key] = {}
+                # 初始化所有指标为0
+                for ind_name in ind_columns:
+                    groups[dim_key][ind_name] = 0
+            
+            # 累加指标值
+            for i, ind_idx in enumerate(ind_indices):
+                ind_name = ind_names_in_table[i]
+                try:
+                    val = row[ind_idx] if ind_idx < len(row) else None
+                    if val is not None and str(val).strip() != '':
+                        groups[dim_key][ind_name] += float(val)
+                except (ValueError, TypeError):
+                    pass  # 忽略无法转换的值
+        
+        # 生成聚合后的表格
+        agg_headers = dim_columns + ind_columns
+        agg_data = []
+        
+        for dim_key, ind_values in groups.items():
+            row = list(dim_key)  # 维度值
+            # 添加指标值，如果不存在则显示error
+            for ind_name in ind_columns:
+                if ind_name in ind_names_in_table:
+                    row.append(ind_values.get(ind_name, 0))
+                else:
+                    row.append('error')  # 该指标在原表中不存在
+            agg_data.append(row)
+        
+        return {
+            'headers': agg_headers,
+            'data': agg_data,
+            'actual_indicators': ind_names_in_table  # 原表中实际存在的指标
+        }
+    
+    def _create_aggregate_result(self, output, agg_a, agg_b, 
+                                 table_a_file, table_b_file,
+                                 table_a_name, table_b_name,
+                                 key_columns, diff_threshold):
+        """创建聚合比对结果Excel（5个sheet）
+        
+        Args:
+            output: 输出文件路径
+            agg_a: 聚合后的表A数据
+            agg_b: 聚合后的表B数据
+            table_a_file: 表A源文件路径
+            table_b_file: 表B源文件路径
+            table_a_name: 表A名称
+            table_b_name: 表B名称
+            key_columns: 维度列数量
+            diff_threshold: 差异阈值
+        """
+        wb = Workbook()
+        # 删除默认sheet
+        if 'Sheet' in wb.sheetnames:
+            wb.remove(wb['Sheet'])
+        
+        ERROR_FILL = PatternFill(start_color="FFE6E6", end_color="FFE6E6", fill_type="solid")
+        HIGHLIGHT_FILL = PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")
+        HEADER = PatternFill(start_color="DCDCDC", end_color="DCDCDC", fill_type="solid")
+        border = Border(
+            left=Side(style='thin'), right=Side(style='thin'),
+            top=Side(style='thin'), bottom=Side(style='thin')
+        )
+        
+        # 找出A和B中不匹配的行（基于维度键）
+        headers_a = agg_a['headers']
+        headers_b = agg_b['headers']
+        data_a = agg_a['data']
+        data_b = agg_b['data']
+        
+        # 构建维度键索引
+        a_keys = set()
+        for row in data_a:
+            key = tuple(row[:key_columns])
+            a_keys.add(key)
+        
+        b_keys = set()
+        for row in data_b:
+            key = tuple(row[:key_columns])
+            b_keys.add(key)
+        
+        # 找出不匹配的键
+        only_in_a = a_keys - b_keys
+        only_in_b = b_keys - a_keys
+        
+        # Sheet1: A表聚合（标红在A中存在但在B中不存在的行）
+        ws1 = wb.create_sheet(f"{table_a_name}聚合")
+        self._write_aggregated_sheet_with_highlight(
+            ws1, agg_a, HEADER, ERROR_FILL, HIGHLIGHT_FILL, border, 
+            key_columns, only_in_a  # 修复：应该标红只在A中的行
+        )
+        
+        # Sheet2: B表聚合（标红在B中存在但在A中不存在的行）
+        ws2 = wb.create_sheet(f"{table_b_name}聚合")
+        self._write_aggregated_sheet_with_highlight(
+            ws2, agg_b, HEADER, ERROR_FILL, HIGHLIGHT_FILL, border, 
+            key_columns, only_in_b  # 修复：应该标红只在B中的行
+        )
+        
+        # Sheet3: 比对结果（只比对公共指标）
+        ws3 = wb.create_sheet("聚合比对结果")
+        wb.active = ws3  # 设置为活动sheet
+        
+        # 找出公共指标（只考虑原表中实际存在的指标，忽略下划线、空格和括号差异）
+        actual_indicators_a = agg_a.get('actual_indicators', [])
+        actual_indicators_b = agg_b.get('actual_indicators', [])
+        
+        # 创建标准化指标名到原始名称的映射
+        normalized_a = {self._normalize_string(ind): ind for ind in actual_indicators_a}
+        normalized_b = {self._normalize_string(ind): ind for ind in actual_indicators_b}
+        
+        # 找出标准化后的公共指标
+        common_normalized = set(normalized_a.keys()) & set(normalized_b.keys())
+        
+        # 使用A表中的原始指标名称（保持统一）
+        common_indicators_list = sorted([normalized_a[norm] for norm in common_normalized])
+        
+        # 构建只包含公共指标的A和B表
+        agg_a_common = self._filter_common_indicators(agg_a, key_columns, common_indicators_list)
+        agg_b_common = self._filter_common_indicators(agg_b, key_columns, common_indicators_list)
+        
+        # 使用维度比对逻辑生成比对结果
+        temp_output = output + '.temp.xlsx'
+        self._create_dimension_result(
+            temp_output, agg_a_common, agg_b_common, key_columns,
+            table_a_name, table_b_name, diff_threshold,
+            None, None  # 不复制源文件
+        )
+        
+        # 从临时文件读取比对结果sheet
+        temp_wb = load_workbook(temp_output)
+        temp_ws = temp_wb.active
+        
+        # 复制比对结果到ws3
+        for row in temp_ws.iter_rows():
+            for cell in row:
+                new_cell = ws3.cell(row=cell.row, column=cell.column, value=cell.value)
+                if cell.has_style:
+                    try:
+                        new_cell.font = cell.font.copy()
+                        new_cell.fill = cell.fill.copy()
+                        new_cell.border = cell.border.copy()
+                        new_cell.alignment = cell.alignment.copy()
+                    except:
+                        pass
+        
+        # 复制列宽
+        for col_letter in temp_ws.column_dimensions:
+            if col_letter in temp_ws.column_dimensions:
+                ws3.column_dimensions[col_letter].width = temp_ws.column_dimensions[col_letter].width
+        
+        # 冻结表头
+        ws3.freeze_panes = 'A2'
+        
+        temp_wb.close()
+        os.remove(temp_output)  # 删除临时文件
+        
+        # Sheet4和5: A和B源文件
+        if table_a_file and os.path.exists(table_a_file):
+            self._copy_sheet_from_file(wb, table_a_file, f"源文件_{table_a_name}")
+        if table_b_file and os.path.exists(table_b_file):
+            self._copy_sheet_from_file(wb, table_b_file, f"源文件_{table_b_name}")
+        
+        # 保存
+        try:
+            wb.save(output)
+        except Exception as e:
+            if sys.platform == 'win32':
+                output_bytes = output.encode('utf-8')
+                wb.save(output_bytes)
+            else:
+                raise e
+        finally:
+            wb.close()
+    
+    def _filter_common_indicators(self, table_data, key_columns, common_indicators):
+        """过滤表格，只保留公共指标（使用标准化匹配）"""
+        headers = table_data['headers']
+        data = table_data['data']
+        
+        # 构建新表头：维度列 + 公共指标列
+        new_headers = headers[:key_columns] + common_indicators
+        
+        # 创建标准化列名到索引的映射
+        normalized_header_map = {}
+        for idx, header in enumerate(headers):
+            normalized = self._normalize_string(header)
+            normalized_header_map[normalized] = idx
+        
+        # 找到公共指标在原表中的索引（使用标准化匹配）
+        indicator_indices = []
+        for ind in common_indicators:
+            normalized_ind = self._normalize_string(ind)
+            if normalized_ind in normalized_header_map:
+                indicator_indices.append(normalized_header_map[normalized_ind])
+        
+        # 构建新数据
+        new_data = []
+        for row in data:
+            new_row = list(row[:key_columns])  # 维度列
+            for idx in indicator_indices:
+                new_row.append(row[idx] if idx < len(row) else None)
+            new_data.append(new_row)
+        
+        return {
+            'headers': new_headers,
+            'data': new_data
+        }
+    
+    def _write_aggregated_sheet_with_highlight(self, ws, table_data, header_fill, 
+                                               error_fill, highlight_fill, border, 
+                                               key_columns, highlight_keys):
+        """写入聚合后的sheet，并标红指定的行
+        
+        Args:
+            ws: worksheet
+            table_data: 表格数据
+            header_fill: 表头填充色
+            error_fill: error单元格填充色
+            highlight_fill: 整行高亮填充色
+            border: 边框
+            key_columns: 维度列数量
+            highlight_keys: 需要高亮的维度键集合
+        """
+        headers = table_data['headers']
+        data = table_data['data']
+        
+        # 写入表头
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.fill = header_fill
+            cell.font = Font(bold=True)
+            cell.alignment = Alignment(horizontal='center')
+            cell.border = border
+        
+        # 冻结表头
+        ws.freeze_panes = 'A2'
+        
+        # 写入数据
+        for row_idx, row_data in enumerate(data, 2):
+            # 获取该行的维度键
+            row_key = tuple(row_data[:key_columns])
+            should_highlight = row_key in highlight_keys
+            
+            for col_idx, value in enumerate(row_data, 1):
+                cell = ws.cell(row=row_idx, column=col_idx, value=value)
+                cell.border = border
+                
+                # 如果该行需要高亮
+                if should_highlight:
+                    cell.fill = highlight_fill
+                    if isinstance(value, str) and 'error' in value.lower():
+                        cell.font = Font(color="FF0000")
+                # 否则只对error单元格标红
+                elif isinstance(value, str) and 'error' in value.lower():
+                    cell.fill = error_fill
+                    cell.font = Font(color="FF0000")
+        
+        # 调整列宽
+        for col_idx in range(1, len(headers) + 1):
+            col_letter = get_column_letter(col_idx)
+            ws.column_dimensions[col_letter].width = 16
+    
 def main():
     print("=" * 50)
     print("Excel比对工具 - Web界面")
